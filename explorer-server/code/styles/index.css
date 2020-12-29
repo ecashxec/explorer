@@ -1,0 +1,35 @@
+@font-face {
+  font-family: 'Ubuntu Mono';
+  src: url('fonts/UbuntuMono-Regular.ttf') format('ttf');
+  font-weight: normal;
+  font-style: normal;
+}
+
+#blocks-table {
+  height: 600px;
+  overflow-y: hidden;
+}
+
+#blocks-table > .webix_dtable {
+  margin: auto;
+}
+
+#blocks .size {
+  text-align: right;
+}
+
+#blocks .hash {
+  font-family: 'Ubuntu Mono';
+}
+
+#blocks .digit-sep {
+  margin-right: 2px;
+}
+
+.main.menu .item img.logo {
+  margin-right: 1.5em;
+}
+
+#search-box {
+  width: 550px;
+}

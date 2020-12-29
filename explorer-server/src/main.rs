@@ -1,10 +1,13 @@
 use std::{convert::Infallible, net::SocketAddr, sync::Arc};
 
 use anyhow::{Result, Context};
+use db::Db;
 use server::Server;
 use warp::{Filter, Rejection, Reply, hyper::StatusCode};
 use serde::Serialize;
 
+mod blockchain;
+mod db;
 mod grpc;
 mod server;
 
@@ -23,18 +26,37 @@ async fn main() -> Result<()> {
         .parse()
         .with_context(|| "Invalid host in config")?;
 
-    let server = Arc::new(Server::setup().await?);
+    let db = Db::open("../db.sled")?;
+
+    let server = Arc::new(Server::setup(db).await?);
 
     let dashboard = warp::path::end()
         .and(with_server(&server))
-        .and_then(dashboard);
+        .and_then(|server: ServerRef| async move {
+            server.dashboard().await.map_err(err)
+        });
 
-    let favicon = warp::get()
-        .and(warp::path("favicon.ico"))
+    let data_blocks =
+        warp::path!("data" / "blocks" / i32 / i32 / "dat.js")
+        .and(with_server(&server))
+        .and_then(|start_height, end_height, server: ServerRef| async move {
+            server.blocks(start_height, end_height).await.map_err(err)
+        });
+
+    let js = warp::path("code")
+        .and(warp::fs::dir("./code"));
+
+    let favicon = warp::path!("favicon.ico")
         .and(warp::fs::file("./assets/favicon.png"));
 
+    let assets = warp::path!("assets" / "logo.png")
+        .and(warp::fs::file("./assets/logo.png"));
+
     let routes = dashboard
-        .or()favicon
+        .or(data_blocks)
+        .or(js)
+        .or(favicon)
+        .or(assets)
         .recover(handle_rejection);
 
     warp::serve(routes).run(host).await;
@@ -42,20 +64,11 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn dashboard(server: ServerRef) -> Result<impl Reply, Rejection> {
-    server
-        .latest_blocks()
-        .await
-        .map_err(AnyhowError::err)
-}
-
 #[derive(Debug)]
 struct AnyhowError(anyhow::Error);
 impl warp::reject::Reject for AnyhowError {}
-impl AnyhowError {
-    fn err(err: anyhow::Error) -> Rejection {
-        warp::reject::custom(AnyhowError(err))
-    }
+fn err(err: anyhow::Error) -> Rejection {
+    warp::reject::custom(AnyhowError(err))
 }
 
 #[derive(Serialize)]
