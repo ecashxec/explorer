@@ -18,11 +18,48 @@
   text-align: right;
 }
 
-#blocks .hash {
+.webix_dtable .hash {
   font-family: 'Ubuntu Mono';
 }
 
-#blocks .digit-sep {
+.hex {
+  font-family: 'Ubuntu Mono';
+  word-break: break-all;
+}
+
+#txs-table {
+  height: 600px;
+}
+
+#txs-table .webix_view {
+  font-size: 13px !important;
+}
+
+#txs-table .fee .webix_cell {
+  overflow: visible;
+}
+
+#txs-table .fee-per-byte {
+  text-align: right;
+}
+
+#txs-table small {
+  opacity: 0.7;
+}
+
+#txs-table .zeros {
+  opacity: 0.3; 
+}
+
+.webix_view {
+  font-family: inherit;
+}
+
+.webix_ss_header, .webix_ss_header > div, .webix_ss_header > div > div {
+  font-family: inherit !important;
+}
+
+.digit-sep {
   margin-right: 2px;
 }
 

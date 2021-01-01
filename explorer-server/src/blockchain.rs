@@ -1,3 +1,5 @@
+use anyhow::Result;
+
 #[derive(Default)]
 #[repr(C, align(1))]
 pub struct BlockHeader {
@@ -25,4 +27,10 @@ pub fn to_le_hex(slice: &[u8]) -> String {
     let mut vec = slice.to_vec();
     vec.reverse();
     hex::encode(&vec)
+}
+
+pub fn from_le_hex(string: &str) -> Result<Vec<u8>> {
+    let mut decoded = hex::decode(string)?;
+    decoded.reverse();
+    Ok(decoded)
 }

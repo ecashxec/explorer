@@ -8,6 +8,7 @@ use serde::Serialize;
 
 mod blockchain;
 mod db;
+mod formatting;
 mod grpc;
 mod server;
 
@@ -36,11 +37,24 @@ async fn main() -> Result<()> {
             server.dashboard().await.map_err(err)
         });
 
+    let block = warp::path!("block" / String)
+        .and(with_server(&server))
+        .and_then(|block_hash: String, server: ServerRef| async move {
+            server.block(&block_hash).await.map_err(err)
+        });
+
     let data_blocks =
         warp::path!("data" / "blocks" / i32 / i32 / "dat.js")
         .and(with_server(&server))
         .and_then(|start_height, end_height, server: ServerRef| async move {
             server.blocks(start_height, end_height).await.map_err(err)
+        });
+
+    let data_block_txs =
+        warp::path!("data" / "block" / String / "dat.js")
+        .and(with_server(&server))
+        .and_then(|block_hash: String, server: ServerRef| async move {
+            server.block_txs(&block_hash).await.map_err(err)
         });
 
     let js = warp::path("code")
@@ -49,11 +63,13 @@ async fn main() -> Result<()> {
     let favicon = warp::path!("favicon.ico")
         .and(warp::fs::file("./assets/favicon.png"));
 
-    let assets = warp::path!("assets" / "logo.png")
-        .and(warp::fs::file("./assets/logo.png"));
+    let assets = warp::path!("assets")
+        .and(warp::fs::dir("./assets/"));
 
     let routes = dashboard
+        .or(block)
         .or(data_blocks)
+        .or(data_block_txs)
         .or(js)
         .or(favicon)
         .or(assets)
