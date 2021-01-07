@@ -32,7 +32,7 @@ function renderInteger(number) {
 
 function renderAmount(baseAmount, decimals) {
   if (decimals === 0) {
-    return renderInteger(baseAmount)
+    return renderInteger(baseAmount);
   }
   var factor = Math.pow(10, decimals);
   var humanAmount = baseAmount / factor;
@@ -70,7 +70,7 @@ function renderSats(sats) {
   var renderedFract1 = z1 && z2 && z3
     ? '<span class="zeros digit-sep">' + fract1 + '</span>'
     : '<span class="digit-sep">' + fract1 + '</span>';
-  var renderedFract2 = z1 && z2
+  var renderedFract2 = z2 && z3
     ? '<small class="zeros digit-sep">' + fract2 + '</small>'
     : '<small class="digit-sep">' + fract2 + '</small>';
   var renderedFract3 = z3

@@ -42,6 +42,18 @@ async fn main() -> Result<()> {
         .and_then(|block_hash: String, server: ServerRef| async move {
             server.block(&block_hash).await.map_err(err)
         });
+    
+    let tx = warp::path!("tx" / String)
+        .and(with_server(&server))
+        .and_then(|tx_hash: String, server: ServerRef| async move {
+            server.tx(&tx_hash).await.map_err(err)
+        });
+    
+    let address = warp::path!("address" / String)
+        .and(with_server(&server))
+        .and_then(|address: String, server: ServerRef| async move {
+            server.address(&address).await.map_err(err)
+        });
 
     let data_blocks =
         warp::path!("data" / "blocks" / i32 / i32 / "dat.js")
@@ -63,11 +75,13 @@ async fn main() -> Result<()> {
     let favicon = warp::path!("favicon.ico")
         .and(warp::fs::file("./assets/favicon.png"));
 
-    let assets = warp::path!("assets")
+    let assets = warp::path("assets")
         .and(warp::fs::dir("./assets/"));
 
     let routes = dashboard
         .or(block)
+        .or(tx)
+        .or(address)
         .or(data_blocks)
         .or(data_block_txs)
         .or(js)

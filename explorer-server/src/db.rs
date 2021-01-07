@@ -31,7 +31,7 @@ pub struct TxMeta {
     pub variant: TxMetaVariant,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
 pub enum TxMetaVariant {
     Normal,
     Slp {
@@ -44,6 +44,12 @@ pub enum TxMetaVariant {
         token_id: [u8; 32],
         token_input: u64,
     },
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
+pub struct TxOutSpend {
+    pub by_tx_hash: [u8; 32],
+    pub by_input_idx: u32,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -108,6 +114,18 @@ impl Db {
         let token_meta_key = [b"token:".as_ref(), token_id].concat();
         let token_meta = bincode::serialize(token_meta)?;
         self.db.insert(token_meta_key, token_meta)?;
+        Ok(())
+    }
+
+    pub fn tx_out_spend(&self, tx_hash: &[u8], tx_out_idx: u32) -> Result<Option<TxOutSpend>> {
+        let tx_out_meta_key = [b"txout:".as_ref(), tx_hash, &tx_out_idx.to_be_bytes()].concat();
+        db_get_option(&self.db, &tx_out_meta_key)
+    }
+
+    pub fn put_tx_out_spend(&self, tx_hash: &[u8], tx_out_idx: u32, tx_out_spend: &TxOutSpend) -> Result<()> {
+        let tx_out_spend_key = [b"txout:".as_ref(), tx_hash, &tx_out_idx.to_be_bytes()].concat();
+        let tx_out_spend = bincode::serialize(tx_out_spend)?;
+        self.db.insert(tx_out_spend_key, tx_out_spend)?;
         Ok(())
     }
 }

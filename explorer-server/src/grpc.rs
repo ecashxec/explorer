@@ -1,8 +1,9 @@
 use anyhow::{anyhow, Result};
 use bchrpc::bchrpc_client::BchrpcClient;
+use bitcoin_cash::{Address, Hashed, Sha256d, TxOutpoint};
 use futures::future::try_join_all;
-use tonic::transport::{Certificate, Channel, ClientTlsConfig, Endpoint};
-use std::convert::TryInto;
+use tonic::{Status, transport::{Certificate, Channel, ClientTlsConfig, Endpoint}};
+use std::{collections::{HashMap, HashSet}, convert::TryInto};
 
 pub mod bchrpc {
     tonic::include_proto!("pb");
@@ -10,15 +11,16 @@ pub mod bchrpc {
 
 use bchrpc::BlockInfo;
 
-use crate::db::{BlockMeta, Db, SlpAction, TokenMeta, TxMeta, TxMetaVariant};
+use crate::{blockchain::{Destination, destination_from_script, is_coinbase, to_le_hex}, db::{BlockMeta, Db, SlpAction, TokenMeta, TxMeta, TxMetaVariant, TxOutSpend}};
 
 pub struct Bchd {
     client: BchrpcClient<Channel>,
     db: Db,
+    satoshi_addr_prefix: &'static str,
 }
 
 impl Bchd {
-    pub async fn connect(db: Db) -> Result<Self> {
+    pub async fn connect(db: Db, satoshi_addr_prefix: &'static str) -> Result<Self> {
         use std::fs;
         use std::io::Read;
         let mut cert_file = fs::File::open("cert.crt")?;
@@ -27,7 +29,7 @@ impl Bchd {
         let tls_config = ClientTlsConfig::new().ca_certificate(Certificate::from_pem(&cert));
         let endpoint = Endpoint::from_static("https://api2.be.cash:8345").tls_config(tls_config)?;
         let client = BchrpcClient::connect(endpoint).await?;
-        Ok(Bchd { client, db })
+        Ok(Bchd { client, db, satoshi_addr_prefix })
     }
 
     pub async fn block_at_height(&self, height: i32) -> Result<BlockInfo> {
@@ -147,12 +149,12 @@ impl Bchd {
         let futures = tx_hashes
             .into_iter()
             .enumerate()
-            .map(|(tx_idx, tx_hash)| self.fetch_tx_meta(tx_idx, block_info, tx_hash));
+            .map(|(tx_idx, tx_hash)| self.fetch_tx_meta(tx_idx == 0, block_info.height, tx_hash));
         let results = try_join_all(futures).await?;
         Ok(results)
     }
 
-    async fn fetch_tx_meta(&self, tx_idx: usize, block_info: &BlockInfo, tx_hash: &[u8]) -> Result<(Vec<u8>, TxMeta)> {
+    async fn fetch_tx_meta(&self, is_coinbase: bool, block_height: i32, tx_hash: &[u8]) -> Result<(Vec<u8>, TxMeta)> {
         use bchrpc::{GetTransactionRequest};
         match self.db.tx_meta(&tx_hash)? {
             Some(tx_meta) => Ok((tx_hash.to_vec(), tx_meta)),
@@ -166,8 +168,8 @@ impl Bchd {
                 let tx_data = tx.transaction.as_ref()
                     .ok_or_else(|| anyhow!("Tx not found"))?;
                 let tx_meta = TxMeta {
-                    is_coinbase: tx_idx == 0,
-                    block_height: block_info.height,
+                    is_coinbase,
+                    block_height,
                     num_inputs: tx_data.inputs.len() as u32,
                     num_outputs: tx_data.outputs.len() as u32,
                     sats_input: tx_data.inputs.iter().map(|input| input.value).sum(),
@@ -285,5 +287,297 @@ impl Bchd {
             }
         }
         Ok(result.into_iter().map(|token_meta| token_meta.unwrap()).collect())
+    }
+}
+
+pub struct Tx {
+    pub transaction: bchrpc::Transaction,
+    pub tx_meta: TxMeta,
+    pub token_meta: Option<TokenMeta>,
+    pub raw_tx: Vec<u8>,
+    pub tx_out_spends: HashMap<u32, Option<TxOutSpend>>,
+}
+
+impl Bchd {
+    pub async fn tx(&self, tx_hash: &[u8]) -> Result<Option<Tx>> {
+        use bchrpc::{GetTransactionRequest, GetRawTransactionRequest};
+        let mut bchd1 = self.client.clone();
+        let mut bchd2= self.client.clone();
+        let (tx, raw_tx) = tokio::try_join!(
+            bchd1.get_transaction(GetTransactionRequest {
+                hash: tx_hash.to_vec(),
+                include_token_metadata: false,
+            }),
+            bchd2.get_raw_transaction(GetRawTransactionRequest {
+                hash: tx_hash.to_vec(),
+            }),
+        )?;
+        let tx = tx.get_ref();
+        let tx = tx.transaction.as_ref().ok_or_else(|| anyhow!("No tx found"))?;
+        let raw_tx = raw_tx.get_ref();
+        let token_meta = match tx.slp_transaction_info.as_ref() {
+            Some(slp_info) => {
+                let tokens = self.tokens(std::iter::once(slp_info.token_id.as_slice())).await?;
+                tokens.into_iter().next()
+            }
+            None => None,
+        };
+        for input in &tx.inputs {
+            let outpoint = input.outpoint.as_ref().ok_or_else(|| anyhow!("No outpoint"))?;
+            self.db.put_tx_out_spend(
+                &outpoint.hash,
+                outpoint.index,
+                &TxOutSpend {
+                    by_tx_hash: tx_hash.try_into()?,
+                    by_input_idx: input.index,
+                },
+            )?;
+        }
+        let tx_out_spends = self.fetch_tx_out_spends(&tx).await?;
+        let is_coinbase = tx.inputs.get(0)
+            .and_then(|input| input.outpoint.as_ref())
+            .map(is_coinbase)
+            .unwrap_or(false);
+        let tx_meta = self.fetch_tx_meta(is_coinbase, tx.block_height, tx_hash).await?.1;
+        Ok(Some(Tx {
+            transaction: tx.clone(),
+            tx_meta,
+            token_meta,
+            raw_tx: raw_tx.transaction.clone(),
+            tx_out_spends,
+        }))
+    }
+
+    async fn fetch_tx_out_spends(&self, tx: &bchrpc::Transaction) -> Result<HashMap<u32, Option<TxOutSpend>>> {
+        let mut address_out_indices = HashMap::new();
+        for output in &tx.outputs {
+            if let Destination::Address(address) = destination_from_script(self.satoshi_addr_prefix, &output.pubkey_script) {
+                let indices = address_out_indices.entry(address).or_insert(HashSet::new());
+                indices.insert(output.index);
+            }
+        }
+        let tx_out_spend_maps = try_join_all(address_out_indices.iter().map(|(address, tx_out_indices)| {
+            self.fetch_tx_out_spend(&tx.hash, tx_out_indices.clone(), tx.block_height, address.cash_addr())
+        })).await?;
+        let mut result_map = HashMap::new();
+        for tx_out_spend_map in tx_out_spend_maps {
+            for (out_idx, spend) in tx_out_spend_map {
+                result_map.insert(out_idx, spend);
+            }
+        }
+        Ok(result_map)
+    }
+
+    async fn fetch_tx_out_spend(&self, tx_hash: &[u8], mut tx_out_indices: HashSet<u32>, height: i32, output_address: &str) -> Result<HashMap<u32, Option<TxOutSpend>>> {
+        use bchrpc::{GetUnspentOutputRequest, GetAddressTransactionsRequest, get_address_transactions_request::StartBlock};
+        let mut result_map = HashMap::new();
+        for tx_out_idx in tx_out_indices.clone() {
+            if let Some(tx_out_spend) = self.db.tx_out_spend(tx_hash, tx_out_idx)? {
+                tx_out_indices.remove(&tx_out_idx);
+                result_map.insert(tx_out_idx, Some(tx_out_spend));
+            }
+        }
+        if tx_out_indices.is_empty() {
+            return Ok(result_map);
+        }
+        let utxo_indices = try_join_all(tx_out_indices.iter().map(|&tx_out_idx | async move {
+            let mut bchd = self.client.clone();
+            match bchd.get_unspent_output(GetUnspentOutputRequest {
+                hash: tx_hash.to_vec(),
+                index: tx_out_idx,
+                include_mempool: true,
+                include_token_metadata: false,
+            }).await {
+                Ok(_) => return Result::<_, Status>::Ok(Some(tx_out_idx)),
+                Err(status) => {
+                    if status.message() != "utxo not found" {
+                        return Err(status.into())
+                    }
+                    return Ok(None)
+                }
+            }
+        })).await?;
+        for utxo_idx in utxo_indices {
+            if let Some(utxo_idx) = utxo_idx {
+                tx_out_indices.remove(&utxo_idx);
+                result_map.insert(utxo_idx, None);
+            }
+        }
+        if tx_out_indices.is_empty() {
+            return Ok(result_map);
+        }
+        let mut num_skip = 0usize;
+        let mut had_attempt = false;
+        let num_batches = 10;
+        let batch_size = 100usize;
+        loop {
+            let batches = try_join_all(
+                (0..num_batches).into_iter().map(|batch_idx| async move {
+                    let addr_txs = self.client.clone().get_address_transactions(GetAddressTransactionsRequest {
+                        address: output_address.to_string(),
+                        nb_skip: (num_skip + batch_idx * batch_size) as u32,
+                        nb_fetch: 100,
+                        start_block: Some(StartBlock::Height(height)),
+                    }).await;
+                    addr_txs.map(|resp| {
+                        resp.get_ref().clone()
+                    })
+                })
+            ).await?;
+            for addr_txs in batches {
+                if addr_txs.confirmed_transactions.is_empty() {
+                    if tx_out_indices.is_empty() {
+                        return Ok(result_map);
+                    }
+                    if had_attempt {
+                        return Err(anyhow!("BCHD reports {}, outputs {:?} are spent but couldn't find tx spend", hex::encode(tx_hash), tx_out_indices));
+                    }
+                }
+                had_attempt = true;
+                num_skip += addr_txs.confirmed_transactions.len();
+                println!("Searched through {} txs for {}", num_skip, output_address);
+                let txs = addr_txs
+                    .confirmed_transactions.iter()
+                    .chain(
+                        addr_txs.unconfirmed_transactions
+                            .iter()
+                            .filter_map(|tx| tx.transaction.as_ref())
+                    );
+                for tx in txs {
+                    for input in &tx.inputs {
+                        if let Some(outpoint) = &input.outpoint {
+                            let tx_out_spend = TxOutSpend {
+                                by_tx_hash: tx.hash.as_slice().try_into()?,
+                                by_input_idx: input.index,
+                            };
+                            self.db.put_tx_out_spend(&outpoint.hash, outpoint.index, &tx_out_spend)?;
+                            if outpoint.hash.as_slice() == tx_hash && tx_out_indices.remove(&outpoint.index) {
+                                result_map.insert(outpoint.index, Some(tx_out_spend));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+pub struct AddressTx {
+    pub timestamp: i64,
+    pub block_height: Option<i32>,
+    pub tx: bchrpc::Transaction,
+    pub tx_meta: TxMeta,
+
+}
+
+pub struct AddressTxs {
+    pub txs: Vec<AddressTx>,
+}
+
+impl Bchd {
+    pub async fn address(&self, address: &Address<'_>) -> Result<AddressTxs> {
+        use bchrpc::{GetAddressTransactionsRequest};
+        let mut bchd = self.client.clone();
+        let mut num_skip = 0usize;
+        let mut addr_txs = Vec::new();
+        let mut found_tx_hashes = HashSet::new();
+        let sats_addr = address.with_prefix(self.satoshi_addr_prefix);
+        loop {
+            let batch_txs = bchd.get_address_transactions(GetAddressTransactionsRequest {
+                address: sats_addr.cash_addr().to_string(),
+                nb_skip: num_skip as u32,
+                nb_fetch: 100,
+                start_block: None,
+            }).await?;
+            let batch_txs = batch_txs.get_ref();
+            num_skip += batch_txs.confirmed_transactions.len();
+            println!("fetched {} address txs", num_skip);
+            for mempool_tx in &batch_txs.unconfirmed_transactions {
+                if let Some(tx) = &mempool_tx.transaction {
+                    self.add_addr_txs(&mut found_tx_hashes, &mut addr_txs, tx, mempool_tx.added_time, None).await?;
+                }
+            }
+            for tx in &batch_txs.confirmed_transactions {
+                self.add_addr_txs(&mut found_tx_hashes, &mut addr_txs, tx, tx.timestamp, Some(tx.block_height)).await?;
+            }
+            if batch_txs.confirmed_transactions.is_empty() {
+                addr_txs.sort_by_key(|tx| -tx.timestamp);
+                return Ok(AddressTxs { txs: addr_txs });
+            }
+        }
+    }
+
+    async fn add_addr_txs(
+        &self,
+        found_tx_hashes: &mut HashSet<[u8; 32]>,
+        addr_txs: &mut Vec<AddressTx>,
+        tx: &bchrpc::Transaction,
+        timestamp: i64,
+        block_height: Option<i32>,
+    ) -> Result<()> {
+        let tx_hash: [u8; 32] = tx.hash.as_slice().try_into().expect("Invalid tx hash");
+        if !found_tx_hashes.contains(&tx_hash) {
+            let is_coinbase = tx.inputs.get(0)
+                .and_then(|input| input.outpoint.as_ref())
+                .map(is_coinbase)
+                .unwrap_or(false);
+            let tx_meta = self.fetch_tx_meta(is_coinbase, tx.block_height, &tx.hash).await?.1;
+            addr_txs.push(AddressTx {
+                timestamp,
+                block_height,
+                tx: tx.clone(),
+                tx_meta,
+            });
+            found_tx_hashes.insert(tx_hash);
+        }
+        Ok(())
+    }
+}
+
+pub struct Utxo {
+    pub tx_hash: [u8; 32],
+    pub out_idx: u32,
+    pub sats_amount: i64,
+    pub token_amount: u64,
+    pub is_coinbase: bool,
+    pub block_height: i32,
+}
+
+pub struct AddressBalance {
+    pub utxos: HashMap<Option<[u8; 32]>, Vec<Utxo>>,
+    pub balances: HashMap<Option<[u8; 32]>, (i64, u64)>,
+}
+
+impl Bchd {
+    pub async fn address_balance(&self, address: &Address<'_>) -> Result<AddressBalance> {
+        use bchrpc::GetAddressUnspentOutputsRequest;
+        let mut bchd = self.client.clone();
+        let unspents = bchd.get_address_unspent_outputs(GetAddressUnspentOutputsRequest {
+            address: address.cash_addr().to_string(),
+            include_mempool: true,
+            include_token_metadata: false,
+        }).await?;
+        let unspents = unspents.get_ref();
+        println!("address_balance: {}", unspents.outputs.len());
+        let mut utxos = HashMap::new();
+        let mut balances = HashMap::new();
+        for output in unspents.outputs.iter() {
+            let token_id: Option<[u8; 32]> = output.slp_token.as_ref().and_then(|slp| slp.token_id.as_slice().try_into().ok());
+            let token_amount = output.slp_token.as_ref().map(|slp| slp.amount).unwrap_or(0);
+            let token_utxos = utxos.entry(token_id).or_insert(vec![]);
+            let outpoint = output.outpoint.as_ref().ok_or_else(|| anyhow!("No outpoint"))?;
+            token_utxos.push(Utxo {
+                tx_hash: outpoint.hash.as_slice().try_into()?,
+                out_idx: outpoint.index,
+                sats_amount: output.value,
+                token_amount,
+                block_height: output.block_height,
+                is_coinbase: output.is_coinbase,
+            });
+            let (balance_sats, balance_token) = balances.entry(token_id).or_insert((0, 0));
+            *balance_sats += output.value;
+            *balance_token += token_amount;
+        }
+        Ok(AddressBalance { utxos, balances })
     }
 }

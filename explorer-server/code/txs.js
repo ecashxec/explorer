@@ -62,7 +62,7 @@ webix.ready(function(){
             var ticker = ' <a href="/tx/' + row.token.tokenId + '">' + row.token.tokenTicker + '</a>';
             return renderAmount(row.tokenOutput, row.token.decimals) + ticker;
           }
-          return renderSats(row.satsOutput) + ' BCH';
+          return renderSats(row.satsOutput) + ' ABC';
         },
       },
     ],

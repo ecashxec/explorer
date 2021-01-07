@@ -1,4 +1,7 @@
 use anyhow::Result;
+use bitcoin_cash::{Address, AddressType, Hash160, Hashed, Op, Opcode, Ops, Script};
+
+use crate::grpc::bchrpc;
 
 #[derive(Default)]
 #[repr(C, align(1))]
@@ -33,4 +36,49 @@ pub fn from_le_hex(string: &str) -> Result<Vec<u8>> {
     let mut decoded = hex::decode(string)?;
     decoded.reverse();
     Ok(decoded)
+}
+
+#[derive(Clone, Debug)]
+pub enum Destination {
+    Nulldata(Vec<Op>),
+    Address(Address<'static>),
+    Unknown(Vec<u8>),
+}
+
+pub fn destination_from_script(prefix: &'static str, script: &[u8]) -> Destination {
+    const OP_DUP: u8 = Opcode::OP_DUP as u8;
+    const OP_HASH160: u8 = Opcode::OP_HASH160 as u8;
+    const OP_EQUALVERIFY: u8 = Opcode::OP_EQUALVERIFY as u8;
+    const OP_CHECKSIG: u8 = Opcode::OP_CHECKSIG as u8;
+    const OP_EQUAL: u8 = Opcode::OP_EQUAL as u8;
+    const OP_RETURN: u8 = Opcode::OP_RETURN as u8;
+    match script {
+        [OP_DUP, OP_HASH160, 20, hash @ .., OP_EQUALVERIFY, OP_CHECKSIG] => {
+            Destination::Address(
+                Address::from_hash(
+                    prefix,
+                    AddressType::P2PKH,
+                    Hash160::from_slice(hash).expect("Invalid hash"),
+                ),
+            )
+        }
+        [OP_HASH160, 20, hash @ .., OP_EQUAL] => {
+            Destination::Address(
+                Address::from_hash(
+                    prefix,
+                    AddressType::P2SH,
+                    Hash160::from_slice(hash).expect("Invalid hash"),
+                )
+            )
+        }
+        [OP_RETURN, data @ ..] => {
+            let ops = Script::deser_ops(data.into()).unwrap_or(Script::new(vec![]));
+            Destination::Nulldata(ops.ops().into_iter().map(|op| op.op.clone()).collect())
+        }
+        _ => Destination::Unknown(script.to_vec()),
+    }
+}
+
+pub fn is_coinbase(outpoint: &bchrpc::transaction::input::Outpoint) -> bool {
+    &outpoint.hash == &[0; 32] && outpoint.index == 0xffff_ffff
 }
