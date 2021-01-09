@@ -1147,12 +1147,12 @@ impl Server {
                 src="https://code.jquery.com/jquery-3.1.1.min.js"
                 integrity="sha256-hVVnYaiADRTO2PzUGmuLJr8BLUSjGIZsDYGmIJLv2b8="
                 crossorigin="anonymous" {}
-            script type="text/javascript" src="/code/semantic-ui/semantic.js?v=0" {}
-            script type="text/javascript" src="/code/webix/webix.js?v=8.1.0" {}
+            script type="text/javascript" src="/code/semantic-ui/semantic.min.js?v=0" {}
+            script type="text/javascript" src="/code/webix/webix.min.js?v=8.1.0" {}
             script type="text/javascript" src="/code/moment.min.js?v=0" {}
             script type="text/javascript" src="/code/common.js" {}
-            link rel="stylesheet" href="/code/webix/webix.css";
-            link rel="stylesheet" href="/code/semantic-ui/semantic.css";
+            link rel="stylesheet" href="/code/webix/webix.min.css";
+            link rel="stylesheet" href="/code/semantic-ui/semantic.min.css";
             link rel="stylesheet" href="/code/styles/index.css";
             link rel="preconnect" href="https://fonts.gstatic.com";
             link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Ubuntu+Mono&display=swap";
