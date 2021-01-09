@@ -46,6 +46,7 @@ impl Server {
                     "We welcome your feedback and bug reports to contact@be.cash."
                 }
                 
+                (self.footer())
             }
         };
         Ok(warp::reply::html(markup.into_string()))
@@ -83,6 +84,8 @@ impl Server {
                 #blocks {
                     #blocks-table {}
                 }
+
+                (self.footer())
                 
                 script type="text/javascript" src={"/data/blocks/" (current_page_height) "/" (current_page_end) "/dat.js"} {}
                 script type="text/javascript" src={"/data/blocks/" (last_page_height) "/" (last_page_end) "/dat.js"} {}
@@ -400,6 +403,9 @@ impl Server {
                         }
                     }
                 }
+
+                (self.footer())
+
                 script type="text/javascript" src={"/data/block/" (block_hash_str) "/dat.js"} {}
                 script type="text/javascript" src="/code/txs.js" {}
             }
@@ -545,6 +551,8 @@ impl Server {
                         }
                     }
                 }
+
+                (self.footer())
             }
         };
         Ok(warp::reply::html(markup.into_string()))
@@ -1105,6 +1113,7 @@ impl Server {
                         #txs-table {}
                     }
                 }
+                (self.footer())
             }
         };
         Ok(warp::reply::html(markup.into_string()))
@@ -1182,6 +1191,16 @@ impl Server {
             //         on: 'hover'
             //     });
             // "#)) }
+        }
+    }
+
+    fn footer(&self) -> Markup {
+        html! {
+            #footer.ui.inverted.vertical.footer.segment {
+                .ui.container {
+                    "be.cash Explorer"
+                }
+            }
         }
     }
 

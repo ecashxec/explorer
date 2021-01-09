@@ -171,3 +171,11 @@
 #addr-txs #txs-table .webix_view, #addr-txs #txs-table .webix_hcell {
   font-size: 12px !important;
 }
+
+#footer {
+  margin-top: 50px;
+}
+
+#footer .container {
+  padding: 20px;
+}

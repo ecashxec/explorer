@@ -11,7 +11,7 @@ pub mod bchrpc {
 
 use bchrpc::BlockInfo;
 
-use crate::{blockchain::{Destination, destination_from_script, from_le_hex, is_coinbase, to_le_hex}, db::{BlockMeta, Db, SlpAction, TokenMeta, TxMeta, TxMetaVariant, TxOutSpend}};
+use crate::{blockchain::{Destination, destination_from_script, from_le_hex, is_coinbase}, db::{BlockMeta, Db, SlpAction, TokenMeta, TxMeta, TxMetaVariant, TxOutSpend}};
 
 pub struct Bchd {
     client: BchrpcClient<Channel>,
