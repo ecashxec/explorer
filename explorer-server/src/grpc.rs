@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use bchrpc::bchrpc_client::BchrpcClient;
-use bitcoin_cash::{Address, Hashed, Sha256d, TxOutpoint};
+use bitcoin_cash::Address;
 use futures::future::try_join_all;
 use tonic::{Status, transport::{Certificate, Channel, ClientTlsConfig, Endpoint}};
 use std::{collections::{HashMap, HashSet}, convert::TryInto};
@@ -11,7 +11,7 @@ pub mod bchrpc {
 
 use bchrpc::BlockInfo;
 
-use crate::{blockchain::{Destination, destination_from_script, is_coinbase, to_le_hex}, db::{BlockMeta, Db, SlpAction, TokenMeta, TxMeta, TxMetaVariant, TxOutSpend}};
+use crate::{blockchain::{Destination, destination_from_script, from_le_hex, is_coinbase, to_le_hex}, db::{BlockMeta, Db, SlpAction, TokenMeta, TxMeta, TxMetaVariant, TxOutSpend}};
 
 pub struct Bchd {
     client: BchrpcClient<Channel>,
@@ -316,11 +316,11 @@ impl Bchd {
         let tx = tx.transaction.as_ref().ok_or_else(|| anyhow!("No tx found"))?;
         let raw_tx = raw_tx.get_ref();
         let token_meta = match tx.slp_transaction_info.as_ref() {
-            Some(slp_info) => {
+            Some(slp_info) if !slp_info.token_id.is_empty() => {
                 let tokens = self.tokens(std::iter::once(slp_info.token_id.as_slice())).await?;
                 tokens.into_iter().next()
             }
-            None => None,
+            _ => None,
         };
         for input in &tx.inputs {
             let outpoint = input.outpoint.as_ref().ok_or_else(|| anyhow!("No outpoint"))?;
@@ -390,7 +390,7 @@ impl Bchd {
             }).await {
                 Ok(_) => return Result::<_, Status>::Ok(Some(tx_out_idx)),
                 Err(status) => {
-                    if status.message() != "utxo not found" {
+                    if status.message() != "utxo not found" && status.message() != "utxo spent in mempool" {
                         return Err(status.into())
                     }
                     return Ok(None)
@@ -467,7 +467,8 @@ pub struct AddressTx {
     pub block_height: Option<i32>,
     pub tx: bchrpc::Transaction,
     pub tx_meta: TxMeta,
-
+    pub delta_sats: i64,
+    pub delta_tokens: i64,
 }
 
 pub struct AddressTxs {
@@ -475,16 +476,15 @@ pub struct AddressTxs {
 }
 
 impl Bchd {
-    pub async fn address(&self, address: &Address<'_>) -> Result<AddressTxs> {
+    pub async fn address(&self, sats_address: &Address<'_>) -> Result<AddressTxs> {
         use bchrpc::{GetAddressTransactionsRequest};
         let mut bchd = self.client.clone();
         let mut num_skip = 0usize;
         let mut addr_txs = Vec::new();
         let mut found_tx_hashes = HashSet::new();
-        let sats_addr = address.with_prefix(self.satoshi_addr_prefix);
         loop {
             let batch_txs = bchd.get_address_transactions(GetAddressTransactionsRequest {
-                address: sats_addr.cash_addr().to_string(),
+                address: sats_address.cash_addr().to_string(),
                 nb_skip: num_skip as u32,
                 nb_fetch: 100,
                 start_block: None,
@@ -494,11 +494,11 @@ impl Bchd {
             println!("fetched {} address txs", num_skip);
             for mempool_tx in &batch_txs.unconfirmed_transactions {
                 if let Some(tx) = &mempool_tx.transaction {
-                    self.add_addr_txs(&mut found_tx_hashes, &mut addr_txs, tx, mempool_tx.added_time, None).await?;
+                    self.add_addr_txs(&mut found_tx_hashes, &mut addr_txs, tx, mempool_tx.added_time, None, sats_address).await?;
                 }
             }
             for tx in &batch_txs.confirmed_transactions {
-                self.add_addr_txs(&mut found_tx_hashes, &mut addr_txs, tx, tx.timestamp, Some(tx.block_height)).await?;
+                self.add_addr_txs(&mut found_tx_hashes, &mut addr_txs, tx, tx.timestamp, Some(tx.block_height), sats_address).await?;
             }
             if batch_txs.confirmed_transactions.is_empty() {
                 addr_txs.sort_by_key(|tx| -tx.timestamp);
@@ -514,6 +514,7 @@ impl Bchd {
         tx: &bchrpc::Transaction,
         timestamp: i64,
         block_height: Option<i32>,
+        sats_address: &Address<'_>,
     ) -> Result<()> {
         let tx_hash: [u8; 32] = tx.hash.as_slice().try_into().expect("Invalid tx hash");
         if !found_tx_hashes.contains(&tx_hash) {
@@ -521,16 +522,69 @@ impl Bchd {
                 .and_then(|input| input.outpoint.as_ref())
                 .map(is_coinbase)
                 .unwrap_or(false);
+            let address_input = tx.inputs.iter()
+                .filter_map(|input| {
+                    let token_amount = if let Some(slp) = &input.slp_token {
+                        slp.amount as i64
+                    } else {
+                        0
+                    };
+                    if let Destination::Address(addr) = destination_from_script(sats_address.prefix_str(), &input.previous_script) {
+                        Some((input.value, token_amount)).filter(|_| addr.cash_addr() == sats_address.cash_addr())
+                    } else {
+                        None
+                    }
+                })
+                .fold((0, 0), |(a_sats, a_tokens), (b_sats, b_tokens)| (a_sats + b_sats, a_tokens + b_tokens));
+            let address_output = tx.outputs.iter()
+                .filter_map(|output| {
+                    let token_amount = if let Some(slp) = &output.slp_token {
+                        slp.amount as i64
+                    } else {
+                        0
+                    };
+                    if let Destination::Address(addr) = destination_from_script(sats_address.prefix_str(), &output.pubkey_script) {
+                        Some((output.value, token_amount)).filter(|_| addr.cash_addr() == sats_address.cash_addr())
+                    } else {
+                        None
+                    }
+                })
+                .fold((0, 0), |(a_sats, a_tokens), (b_sats, b_tokens)| (a_sats + b_sats, a_tokens + b_tokens));
             let tx_meta = self.fetch_tx_meta(is_coinbase, tx.block_height, &tx.hash).await?.1;
             addr_txs.push(AddressTx {
                 timestamp,
                 block_height,
                 tx: tx.clone(),
                 tx_meta,
+                delta_sats: address_output.0 - address_input.0,
+                delta_tokens: address_output.1 - address_input.1,
             });
             found_tx_hashes.insert(tx_hash);
         }
         Ok(())
+    }
+
+    pub async fn search(&self, query: &str) -> Result<Option<String>> {
+        use bchrpc::{GetRawTransactionRequest, GetBlockInfoRequest, get_block_info_request::HashOrHeight};
+        match Address::from_cash_addr(query) {
+            Ok(address) => return Ok(Some(format!("/address/{}", address.cash_addr()))),
+            _ => {},
+        }
+        let bytes = from_le_hex(query)?;
+        let mut bchd = self.client.clone();
+        match bchd.get_raw_transaction(GetRawTransactionRequest {
+            hash: bytes.clone(),
+        }).await {
+            Ok(_) => return Ok(Some(format!("/tx/{}", query))),
+            _ => {},
+        }
+        match bchd.get_block_info(GetBlockInfoRequest {
+            hash_or_height: Some(HashOrHeight::Hash(bytes)),
+        }).await {
+            Ok(_) => return Ok(Some(format!("/block/{}", query))),
+            _ => {}
+        }
+        Ok(None)
     }
 }
 
@@ -549,11 +603,11 @@ pub struct AddressBalance {
 }
 
 impl Bchd {
-    pub async fn address_balance(&self, address: &Address<'_>) -> Result<AddressBalance> {
+    pub async fn address_balance(&self, sats_address: &Address<'_>) -> Result<AddressBalance> {
         use bchrpc::GetAddressUnspentOutputsRequest;
         let mut bchd = self.client.clone();
         let unspents = bchd.get_address_unspent_outputs(GetAddressUnspentOutputsRequest {
-            address: address.cash_addr().to_string(),
+            address: sats_address.cash_addr().to_string(),
             include_mempool: true,
             include_token_metadata: false,
         }).await?;
@@ -561,6 +615,8 @@ impl Bchd {
         println!("address_balance: {}", unspents.outputs.len());
         let mut utxos = HashMap::new();
         let mut balances = HashMap::new();
+        utxos.insert(None, vec![]);
+        balances.insert(None, (0, 0));
         for output in unspents.outputs.iter() {
             let token_id: Option<[u8; 32]> = output.slp_token.as_ref().and_then(|slp| slp.token_id.as_slice().try_into().ok());
             let token_amount = output.slp_token.as_ref().map(|slp| slp.amount).unwrap_or(0);

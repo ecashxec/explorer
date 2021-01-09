@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies]
 bitcoin-cash = { path = "../../bitcoin-cash/bitcoin-cash" }
+bitcoin = "0.25"
 maud = "0.22"
 tonic = { version = "0.3", features = ["transport", "tls"] }
 prost = "0.6"
@@ -23,6 +24,7 @@ num-format = "0.4"
 chrono = "0.4"
 chrono-humanize = "0.1.1"
 base64 = "0.13"
+qrcode-generator = "4.0"
 
 [build-dependencies]
 tonic-build = "0.3"

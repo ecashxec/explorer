@@ -8,6 +8,9 @@ webix.ready(function(){
         id: "txHash",
         header: "ID",
         css: "hash",
+        template: function (row) {
+          return '<a href="/tx/' + row.txHash + '">' + row.txHash + '</a>';
+        },
       },
       {
         width: 70,

@@ -31,7 +31,7 @@
   height: 600px;
 }
 
-#txs-table .webix_view {
+#block-txs #txs-table .webix_view {
   font-size: 13px !important;
 }
 
@@ -90,4 +90,84 @@
 
 .toggle i {
   cursor: pointer;
+}
+
+#coins a {
+  cursor: pointer;
+}
+
+.address-sats {
+  display: flex;
+  align-items: center;
+}
+
+.balance {
+  flex: 1;
+  margin-left: 25px;
+}
+
+.balance h1 {
+  font-size: 45px;
+  margin-top: 0px;
+  margin-bottom: 0px;
+}
+
+.balance h4 {
+  font-size: 30px;
+  margin-top: 10px;
+  margin-bottom: 0px;
+}
+
+.balance h3 {
+  margin-top: 0px;
+}
+
+.balance h1 .show-coins {
+  font-size: 20px;
+  margin-left: 25px;
+}
+
+.addresses {
+  margin-bottom: 15px !important;
+}
+
+.qr-code {
+  margin-right: 15px;
+}
+
+.qr-kind {
+  margin-right: 55px;
+}
+
+.qr-kind > .address1, .qr-kind > .address2 {
+  margin-bottom: 12px;
+}
+
+#selected-address-1 .address1,
+#selected-address-2 .address2,
+#selected-address-3 .address3 {
+  font-weight: bold;
+}
+
+#sats-coins {
+  margin: 0 25px 15px 25px;
+}
+
+#sats-coins-table {
+  max-height: 250px;
+  overflow-y: scroll;
+}
+
+#coins .token-amount {
+  padding-left: 65px;
+  width: 1px;
+  white-space: nowrap;
+}
+
+#coins .token-table {
+  padding-left: 65px;
+}
+
+#addr-txs #txs-table .webix_view, #addr-txs #txs-table .webix_hcell {
+  font-size: 12px !important;
 }

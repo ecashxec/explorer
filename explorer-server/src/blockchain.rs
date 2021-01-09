@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use anyhow::Result;
 use bitcoin_cash::{Address, AddressType, Hash160, Hashed, Op, Opcode, Ops, Script};
 
@@ -39,13 +41,13 @@ pub fn from_le_hex(string: &str) -> Result<Vec<u8>> {
 }
 
 #[derive(Clone, Debug)]
-pub enum Destination {
+pub enum Destination<'a> {
     Nulldata(Vec<Op>),
-    Address(Address<'static>),
+    Address(Address<'a>),
     Unknown(Vec<u8>),
 }
 
-pub fn destination_from_script(prefix: &'static str, script: &[u8]) -> Destination {
+pub fn destination_from_script<'a>(prefix: &'a str, script: &[u8]) -> Destination<'a> {
     const OP_DUP: u8 = Opcode::OP_DUP as u8;
     const OP_HASH160: u8 = Opcode::OP_HASH160 as u8;
     const OP_EQUALVERIFY: u8 = Opcode::OP_EQUALVERIFY as u8;
@@ -81,4 +83,14 @@ pub fn destination_from_script(prefix: &'static str, script: &[u8]) -> Destinati
 
 pub fn is_coinbase(outpoint: &bchrpc::transaction::input::Outpoint) -> bool {
     &outpoint.hash == &[0; 32] && outpoint.index == 0xffff_ffff
+}
+
+pub fn to_legacy_address(address: &Address<'_>) -> String {
+    let hash_hex = address.hash().to_hex_be();
+    let script = bitcoin::Script::new_p2pkh(
+        &FromStr::from_str(&hash_hex).expect("Invalid pkh")
+    );
+    let address = bitcoin::Address::from_script(&script, bitcoin::Network::Bitcoin);
+    let address = address.expect("Invalid address");
+    address.to_string()
 }

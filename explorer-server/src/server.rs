@@ -1,13 +1,13 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow, bail};
 use bitcoin_cash::{Address, Script};
 use maud::{DOCTYPE, Markup, PreEscaped, html};
-use warp::Reply;
+use warp::{Reply, http::Uri};
 use serde::Serialize;
 use chrono::{Utc, TimeZone};
 use chrono_humanize::HumanTime;
-use std::{borrow::Cow, collections::{HashMap, hash_map::Entry}, convert::TryInto};
+use std::{borrow::Cow, collections::{HashMap, hash_map::Entry}, convert::{TryInto, TryFrom}};
 
-use crate::{blockchain::{BlockHeader, Destination, destination_from_script, from_le_hex, is_coinbase, to_le_hex}, db::{Db, SlpAction, TokenMeta, TxMeta, TxMetaVariant, TxOutSpend}, formatting::{render_amount, render_byte_size, render_difficulty, render_integer, render_sats}, grpc::{AddressBalance, Bchd, bchrpc}};
+use crate::{blockchain::{BlockHeader, Destination, destination_from_script, from_le_hex, to_legacy_address, to_le_hex}, db::{Db, SlpAction, TokenMeta, TxMeta, TxMetaVariant, TxOutSpend}, formatting::{render_amount, render_byte_size, render_difficulty, render_integer, render_sats}, grpc::{AddressBalance, Bchd, bchrpc}};
 
 pub struct Server {
     bchd: Bchd,
@@ -29,6 +29,30 @@ impl Server {
 
 impl Server {
     pub async fn dashboard(&self) -> Result<impl Reply> {
+        let markup = html! {
+            (DOCTYPE)
+            head {
+                meta charset="utf-8";
+                title { "be.cash Block Explorer" }
+                (self.head_common())
+            }
+            body {
+                (self.toolbar())
+
+                .ui.container {
+                    h1 {
+                        "Welcome to the be.cash Block Explorer"
+                    }
+                    "We welcome your feedback and bug reports to contact@be.cash."
+                }
+                
+            }
+        };
+        Ok(warp::reply::html(markup.into_string()))
+
+    }
+
+    pub async fn blocks(&self) -> Result<impl Reply> {
         let blockchain_info = self.bchd.blockchain_info().await?;
         let page_size = 2000;
         let current_page_height = (blockchain_info.best_height / page_size) * page_size;
@@ -68,7 +92,7 @@ impl Server {
         Ok(warp::reply::html(markup.into_string()))
     }
 
-    pub async fn blocks(&self, start_height: i32, _end_height: i32) -> Result<impl Reply> {
+    pub async fn data_blocks(&self, start_height: i32, _end_height: i32) -> Result<impl Reply> {
         let blocks = self.bchd.blocks_above(start_height - 1).await?;
         #[derive(Serialize)]
         #[serde(rename_all = "camelCase")]
@@ -138,6 +162,8 @@ struct JsonTx {
     num_outputs: u32,
     sats_input: i64,
     sats_output: i64,
+    delta_sats: i64,
+    delta_tokens: i64,
     token_idx: Option<usize>,
     is_burned_slp: bool,
     token_input: u64,
@@ -165,12 +191,12 @@ struct JsonTxs {
 }
 
 impl Server {
-    pub async fn block_txs(&self, block_hash: &str) -> Result<impl Reply> {
+    pub async fn data_block_txs(&self, block_hash: &str) -> Result<impl Reply> {
         let block_hash = from_le_hex(block_hash)?;
         let block_txs = self.bchd.block_txs(&block_hash).await?;
         let json_txs = self.json_txs(
             block_txs.iter()
-                .map(|(tx_hash, tx_meta)| (tx_hash.as_slice(), 0, Some(tx_meta.block_height), tx_meta))
+                .map(|(tx_hash, tx_meta)| (tx_hash.as_slice(), 0, Some(tx_meta.block_height), tx_meta, (0, 0)))
         ).await?;
         let encoded_txs = serde_json::to_string(&json_txs.txs)?;
         let encoded_tokens = serde_json::to_string(&json_txs.tokens)?;
@@ -194,10 +220,10 @@ impl Server {
         Ok(reply)
     }
 
-    async fn json_txs(&self, txs: impl ExactSizeIterator<Item=(&[u8], i64, Option<i32>, &TxMeta)>) -> Result<JsonTxs> {
+    async fn json_txs(&self, txs: impl ExactSizeIterator<Item=(&[u8], i64, Option<i32>, &TxMeta, (i64, i64))>) -> Result<JsonTxs> {
         let mut json_txs = Vec::with_capacity(txs.len());
         let mut token_indices = HashMap::<[u8; 32], usize>::new();
-        for (tx_hash, timestamp, block_height, tx_meta) in txs {
+        for (tx_hash, timestamp, block_height, tx_meta, (delta_sats, delta_tokens)) in txs {
             let mut tx = JsonTx {
                 tx_hash: to_le_hex(&tx_hash),
                 block_height,
@@ -208,6 +234,8 @@ impl Server {
                 num_outputs: tx_meta.num_outputs,
                 sats_input: tx_meta.sats_input,
                 sats_output: tx_meta.sats_output,
+                delta_sats,
+                delta_tokens,
                 token_idx: None,
                 is_burned_slp: false,
                 token_input: 0,
@@ -367,7 +395,9 @@ impl Server {
                     }
                     .ui.segment {
                         h2.ui.header { "Transactions" }
-                        #txs-table {}
+                        #block-txs {
+                            #txs-table {}
+                        }
                     }
                 }
                 script type="text/javascript" src={"/data/block/" (block_hash_str) "/dat.js"} {}
@@ -410,20 +440,9 @@ impl Server {
                             .ui.green.horizontal.label { "Coinbase" }
                         }
                         .ui.slider.checkbox style="float: right;" {
-                            (PreEscaped(
-                                r#"<script type="text/javascript">
-                                    function toggleHex() {
-                                        if ($('#raw-hex-toggle').is(':checked')) {
-                                            $('#raw-hex').show()
-                                        } else {
-                                            $('#raw-hex').hide()
-                                        }
-                                    }
-                                </script>"#,
-                            ))
-                            input#raw-hex-toggle
+                            input
                                 type="checkbox"
-                                onclick="toggleHex()";
+                                onclick="$('#raw-hex').toggle()";
                             label { "Show raw hex" }
                         }
                     }
@@ -873,11 +892,14 @@ impl Server {
 impl Server {
     pub async fn address(&self, address: &str) -> Result<impl Reply> {
         let address = Address::from_cash_addr(address)?;
-        let address_txs = self.bchd.address(&address).await?;
+        let sats_address = address.with_prefix(self.satoshi_addr_prefix);
+        let token_address = address.with_prefix(self.tokens_addr_prefix);
+        let legacy_address = to_legacy_address(&address);
+        let address_txs = self.bchd.address(&sats_address).await?;
         let json_txs = self.json_txs(address_txs.txs.iter().map(|addr_tx| {
-            (addr_tx.tx.hash.as_slice(), addr_tx.timestamp, addr_tx.block_height, &addr_tx.tx_meta)
+            (addr_tx.tx.hash.as_slice(), addr_tx.timestamp, addr_tx.block_height, &addr_tx.tx_meta, (addr_tx.delta_sats, addr_tx.delta_tokens))
         })).await?;
-        let balance = self.bchd.address_balance(&address).await?;
+        let balance = self.bchd.address_balance(&sats_address).await?;
         #[derive(Serialize)]
         #[serde(rename_all = "camelCase")]
         struct JsonUtxo {
@@ -897,11 +919,14 @@ impl Server {
             utxos: Vec<JsonUtxo>,
         }
         let AddressBalance { balances, utxos } = balance;
+        let token_dust = balances.iter()
+            .filter_map(|(token_id, balance)| token_id.and(Some(balance.0)))
+            .sum::<i64>();
         let mut json_balances = utxos.into_iter().map(|(token_id, mut utxos)| {
             let (sats_amount, token_amount) = balances[&token_id];
             utxos.sort_by_key(|utxo| -utxo.block_height);
             (
-                utxos[0].block_height,
+                utxos.get(0).map(|utxo| utxo.block_height).unwrap_or(0),
                 JsonBalance {
                     token_idx: token_id.and_then(|token_id| json_txs.token_indices.get(&token_id)).copied(),
                     sats_amount,
@@ -951,6 +976,7 @@ impl Server {
                             for (var i = 0; i < txs.length; ++i) {{
                                 var tx = txs[i];
                                 tx.token = tx.tokenIdx === null ? null : tokens[tx.tokenIdx];
+                                tx.timestamp *= 1000;
                                 window.addrTxData[startIdx + i] = tx;
                             }}
                             var balances = JSON.parse('{encoded_balances}');
@@ -968,36 +994,139 @@ impl Server {
                 )))
 
                 .ui.container {
-                    table.ui.table {
-                        @for balance in json_balances.iter() {
+                    table#coins.ui.table {
+                        @for (balance_idx, balance) in json_balances.iter().enumerate() {
                             @let token = balance.token_idx.and_then(|token_idx| json_txs.tokens.get(token_idx));
                             @match token {
                                 None => {
                                     tr {
-                                        td colspan="2" {
-                                            h1 {
-                                                (render_sats(balance.sats_amount, true)) " ABC"
+                                        td colspan="20" {
+                                            .address-sats {
+                                                .balance {
+                                                    h4 { "Balance" }
+                                                    h1 {
+                                                        (render_sats(balance.sats_amount, true)) " ABC"
+                                                        a.show-coins onclick="$('#sats-coins').toggle(); loadSatsTable();" {
+                                                            "Show Coins " i.icon.chevron.circle.down {}
+                                                        }
+                                                    }
+                                                    @if token_dust > 0 {
+                                                        h3 {
+                                                            "+" (render_sats(token_dust, true)) " ABC in token dust"
+                                                        }
+                                                    }
+                                                    table.addresses.ui.table.very.basic.collapsing.celled.compact {
+                                                        tbody {
+                                                            tr {
+                                                                td { "Cash Address" }
+                                                                td { (sats_address.cash_addr()) }
+                                                            }
+                                                            tr {
+                                                                td { "Token Address" }
+                                                                td { (token_address.cash_addr()) }
+                                                            }
+                                                            tr {
+                                                                td { "Legacy Address" }
+                                                                td { (legacy_address) }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                .qr-code {
+                                                    img#qr-code-img src={"/address-qr/" (address.cash_addr())} {}
+                                                }
+                                                .qr-kind id={"selected-address-" (if sats_address.cash_addr() == address.cash_addr() { "1" } else { "2"})} {
+                                                    .address1 {
+                                                        a onclick={"\
+                                                            $('#qr-code-img').attr('src', '/address-qr/" (sats_address.cash_addr()) "');\
+                                                            $('.qr-kind').attr('id', 'selected-address-1');\
+                                                        "} {
+                                                            "ABC Address"
+                                                        }
+                                                    }
+                                                    .address2 {
+                                                        a onclick={"\
+                                                            $('#qr-code-img').attr('src', '/address-qr/" (token_address.cash_addr()) "');\
+                                                            $('.qr-kind').attr('id', 'selected-address-2');\
+                                                        "} {
+                                                            "SLP Address"
+                                                        }
+                                                    }
+                                                    .address3 {
+                                                        a onclick={"\
+                                                            $('#qr-code-img').attr('src', '/address-qr/" (legacy_address) "');\
+                                                            $('.qr-kind').attr('id', 'selected-address-3');\
+                                                        "} {
+                                                            "Legacy Address"
+                                                        }
+                                                    }
+                                                }
                                             }
+                                            #sats-coins style="display: none;" {
+                                                #sats-coins-table {}
+                                            }
+                                            script type="text/javascript" src="/code/coins.js?v=0" {}
                                         }
                                     }
                                 },
                                 Some(token) => {
                                     tr {
-                                        td {
+                                        td.token-amount {
                                             (render_amount(balance.token_amount, token.decimals))
                                         }
                                         td {
                                             (PreEscaped(&token.token_ticker))
+                                        }
+                                        td {
+                                            (PreEscaped(&token.token_name))
+                                        }
+                                        td {
+                                            "+" (render_sats(balance.sats_amount, false))
+                                            " ABC dust"
+                                            a onclick={"$('#token-coins-" (balance_idx) "').toggle(); loadTokenTable(" (balance_idx) ")"} {
+                                                " ("
+                                                (render_integer(balance.utxos.len() as u64))
+                                                " coins "
+                                                i.icon.chevron.circle.down {}
+                                                ")"
+                                            }
+                                        }
+                                    }
+                                    tr id={"token-coins-" (balance_idx)} style="display: none;" {
+                                        td.token-table colspan="20" {
+                                            div id={"tokens-coins-table-" (balance_idx)} {}
                                         }
                                     }
                                 },
                             }
                         }
                     }
+                    #addr-txs {
+                        #txs-table {}
+                    }
                 }
             }
         };
         Ok(warp::reply::html(markup.into_string()))
+    }
+
+    pub async fn address_qr(&self, address: &str) -> Result<impl Reply> {
+        use qrcode_generator::QrCodeEcc;
+        if address.len() > 60 {
+            bail!("Invalid address length");
+        }
+        let png = qrcode_generator::to_png_to_vec(address, QrCodeEcc::Quartile, 160)?;
+        let reply = warp::reply::with_header(png, "Content-Type", "image/png");
+        Ok(reply)
+    }
+
+    pub async fn search(&self, query: &str) -> Result<Box<dyn Reply>> {
+        match self.bchd.search(query).await? {
+            Some(url) => Ok(Box::new(warp::redirect(Uri::try_from(url.as_str())?))),
+            None => Ok(Box::new(warp::reply::html(html! {
+                h1 { "Not found" }
+            }.into_string())))
+        }
     }
 }
 
@@ -1024,30 +1153,35 @@ impl Server {
     fn toolbar(&self) -> Markup {
         html! {
             .ui.main.menu {
-                .header.item {
+                a.header.item href="/" {
                     img.logo src="/assets/logo.png" {}
                     "be.cash Explorer"
                 }
                 a.item href="/blocks" { "Blocks" }
                 .item {
                     #search-box.ui.transparent.icon.input {
-                        input type="text" placeholder="Search blocks, transactions, adddresses, tokens..." {}
-                        i.search.link.icon {}
+                        input#search-bar
+                            type="text"
+                            placeholder="Search blocks, transactions, adddresses, tokens..."
+                            onchange="searchBarChange()"
+                            onkeyup="searchBarChange()" {}
+                        i#search-button.search.link.icon
+                            onclick="searchButton()" {}
                     }
                 }
                 .ui.right.floated.dropdown.item href="#" {
                     "Bitcoin ABC"
-                    i.dropdown.icon {}
+                    // i.dropdown.icon {}
                     .menu {
                         .item { "Bitcoin ABC" }
                     }
                 }
             }
-            script { (PreEscaped(r#"
-                $('.main.menu  .ui.dropdown').dropdown({
-                    on: 'hover'
-                });
-            "#)) }
+            // script { (PreEscaped(r#"
+            //     $('.main.menu  .ui.dropdown').dropdown({
+            //         on: 'hover'
+            //     });
+            // "#)) }
         }
     }
 

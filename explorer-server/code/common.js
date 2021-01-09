@@ -84,3 +84,23 @@ function renderSats(sats) {
     return renderInteger(integerPart) + '.' + renderedFract1;
   }
 }
+
+function renderTxHash(txHash) {
+  return txHash.substr(0, 10) + '&hellip;' + txHash.substr(60, 4)
+}
+
+var regHex32 = /^[0-9a-fA-F]{64}$/
+function searchBarChange() {
+  if (event.key == 'Enter') {
+    return searchButton();
+  }
+  var search = $('#search-bar').val();
+  if (search.match(regHex32) !== null) {
+    location.href = '/search/' + search;
+  }
+}
+
+function searchButton() {
+  var search = $('#search-bar').val();
+  location.href = '/search/' + search;
+}
