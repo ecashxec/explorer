@@ -200,7 +200,7 @@ impl Bchd {
                         return TxMetaVariant::Normal;
                     } else {
                         return TxMetaVariant::InvalidSlp {
-                            token_id: slp.token_id.as_slice().try_into().unwrap(),
+                            token_id: slp.token_id.as_slice().try_into().unwrap_or([0; 32]),
                             token_input: input_sum,
                         };
                     }
