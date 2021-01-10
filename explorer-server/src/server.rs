@@ -261,14 +261,16 @@ impl Server {
                 }
             }
             if let Some(token_id) = tx_token_id {
-                let num_tokens = token_indices.len();
-                match token_indices.entry(token_id) {
-                    Entry::Vacant(vacant) => {
-                        vacant.insert(num_tokens);
-                        tx.token_idx = Some(num_tokens);
-                    },
-                    Entry::Occupied(occupied) => {
-                        tx.token_idx = Some(*occupied.get());
+                if token_id.len() == 32 {
+                    let num_tokens = token_indices.len();
+                    match token_indices.entry(token_id) {
+                        Entry::Vacant(vacant) => {
+                            vacant.insert(num_tokens);
+                            tx.token_idx = Some(num_tokens);
+                        },
+                        Entry::Occupied(occupied) => {
+                            tx.token_idx = Some(*occupied.get());
+                        }
                     }
                 }
             }
