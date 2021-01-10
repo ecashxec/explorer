@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use bchrpc::bchrpc_client::BchrpcClient;
-use bitcoin_cash::Address;
+use bitcoin_cash::{Address, Hashed};
 use futures::future::try_join_all;
 use tonic::{Status, transport::{Certificate, Channel, ClientTlsConfig, Endpoint}};
 use std::{collections::{HashMap, HashSet}, convert::TryInto};
@@ -11,7 +11,7 @@ pub mod bchrpc {
 
 use bchrpc::BlockInfo;
 
-use crate::{blockchain::{Destination, destination_from_script, from_le_hex, is_coinbase}, db::{BlockMeta, Db, SlpAction, TokenMeta, TxMeta, TxMetaVariant, TxOutSpend}};
+use crate::{blockchain::{Destination, destination_from_script, from_le_hex, is_coinbase}, db::{BlockMeta, ConfirmedAddressTx, Db, SlpAction, TokenMeta, TxMeta, TxMetaVariant, TxOutSpend}};
 
 pub struct Bchd {
     client: BchrpcClient<Channel>,
@@ -27,7 +27,7 @@ impl Bchd {
         let mut cert = Vec::new();
         cert_file.read_to_end(&mut cert)?;
         let tls_config = ClientTlsConfig::new().ca_certificate(Certificate::from_pem(&cert));
-        let endpoint = Endpoint::from_static("https://api2.be.cash:8345").tls_config(tls_config)?;
+        let endpoint = Endpoint::from_static("https://api2.be.cash:8445").tls_config(tls_config)?;
         let client = BchrpcClient::connect(endpoint).await?;
         Ok(Bchd { client, db, satoshi_addr_prefix })
     }
@@ -149,15 +149,19 @@ impl Bchd {
         let futures = tx_hashes
             .into_iter()
             .enumerate()
-            .map(|(tx_idx, tx_hash)| self.fetch_tx_meta(tx_idx == 0, block_info.height, tx_hash));
+            .map(|(tx_idx, tx_hash)| async move {
+                self.fetch_tx_meta(tx_idx == 0, block_info.height, tx_hash).await.map(|tx_meta| {
+                    (tx_hash.to_vec(), tx_meta)
+                })
+            });
         let results = try_join_all(futures).await?;
         Ok(results)
     }
 
-    async fn fetch_tx_meta(&self, is_coinbase: bool, block_height: i32, tx_hash: &[u8]) -> Result<(Vec<u8>, TxMeta)> {
+    async fn fetch_tx_meta(&self, is_coinbase: bool, block_height: i32, tx_hash: &[u8]) -> Result<TxMeta> {
         use bchrpc::{GetTransactionRequest};
         match self.db.tx_meta(&tx_hash)? {
-            Some(tx_meta) => Ok((tx_hash.to_vec(), tx_meta)),
+            Some(tx_meta) => Ok(tx_meta),
             None => {
                 let mut bchd = self.client.clone();
                 let tx = bchd.get_transaction(GetTransactionRequest {
@@ -165,21 +169,25 @@ impl Bchd {
                     include_token_metadata: false,
                 }).await?;
                 let tx = tx.get_ref();
-                let tx_data = tx.transaction.as_ref()
+                let tx = tx.transaction.as_ref()
                     .ok_or_else(|| anyhow!("Tx not found"))?;
-                let tx_meta = TxMeta {
-                    is_coinbase,
-                    block_height,
-                    num_inputs: tx_data.inputs.len() as u32,
-                    num_outputs: tx_data.outputs.len() as u32,
-                    sats_input: tx_data.inputs.iter().map(|input| input.value).sum(),
-                    sats_output: tx_data.outputs.iter().map(|output| output.value).sum(),
-                    size: tx_data.size,
-                    variant: self.tx_meta_variant(tx_data),
-                };
+                let tx_meta = self.extract_tx_meta(is_coinbase, block_height, tx);
                 self.db.put_tx_meta(&tx_hash, &tx_meta)?;
-                Ok((tx_hash.to_vec(), tx_meta))
+                Ok(tx_meta)
             }
+        }
+    }
+
+    fn extract_tx_meta(&self, is_coinbase: bool, block_height: i32, tx: &bchrpc::Transaction) -> TxMeta {
+        TxMeta {
+            is_coinbase,
+            block_height,
+            num_inputs: tx.inputs.len() as u32,
+            num_outputs: tx.outputs.len() as u32,
+            sats_input: tx.inputs.iter().map(|input| input.value).sum(),
+            sats_output: tx.outputs.iter().map(|output| output.value).sum(),
+            size: tx.size,
+            variant: self.tx_meta_variant(tx),
         }
     }
 
@@ -200,7 +208,7 @@ impl Bchd {
                         return TxMetaVariant::Normal;
                     } else {
                         return TxMetaVariant::InvalidSlp {
-                            token_id: slp.token_id.as_slice().try_into().unwrap_or([0; 32]),
+                            token_id: slp.token_id.clone(),
                             token_input: input_sum,
                         };
                     }
@@ -338,7 +346,7 @@ impl Bchd {
             .and_then(|input| input.outpoint.as_ref())
             .map(is_coinbase)
             .unwrap_or(false);
-        let tx_meta = self.fetch_tx_meta(is_coinbase, tx.block_height, tx_hash).await?.1;
+        let tx_meta = self.fetch_tx_meta(is_coinbase, tx.block_height, tx_hash).await?;
         Ok(Some(Tx {
             transaction: tx.clone(),
             tx_meta,
@@ -463,9 +471,9 @@ impl Bchd {
 }
 
 pub struct AddressTx {
+    pub tx_hash: [u8; 32],
     pub timestamp: i64,
     pub block_height: Option<i32>,
-    pub tx: bchrpc::Transaction,
     pub tx_meta: TxMeta,
     pub delta_sats: i64,
     pub delta_tokens: i64,
@@ -477,32 +485,63 @@ pub struct AddressTxs {
 
 impl Bchd {
     pub async fn address(&self, sats_address: &Address<'_>) -> Result<AddressTxs> {
-        use bchrpc::{GetAddressTransactionsRequest};
+        use bchrpc::{GetAddressTransactionsRequest, get_address_transactions_request::StartBlock};
         let mut bchd = self.client.clone();
         let mut num_skip = 0usize;
         let mut addr_txs = Vec::new();
         let mut found_tx_hashes = HashSet::new();
+        let db_txs = self.db.confirmed_address_txs(
+            sats_address.addr_type() as u8,
+            sats_address.hash().as_slice(),
+        )?;
+        let mut start_block = None::<i32>;
+        for (tx_hash, confirmed_address_tx) in db_txs {
+            addr_txs.push(AddressTx {
+                tx_hash,
+                timestamp: confirmed_address_tx.timestamp,
+                block_height: Some(confirmed_address_tx.block_height),
+                tx_meta: confirmed_address_tx.tx_meta,
+                delta_sats: confirmed_address_tx.delta_sats,
+                delta_tokens: confirmed_address_tx.delta_tokens,
+            });
+            found_tx_hashes.insert(tx_hash);
+            let new_start_block = match start_block {
+                Some(start_block) => start_block.max(confirmed_address_tx.block_height),
+                None => confirmed_address_tx.block_height,
+            };
+            start_block = Some(new_start_block - 1);
+        }
+        let fetch_amount = 100;
+        let num_batches = 10;
         loop {
-            let batch_txs = bchd.get_address_transactions(GetAddressTransactionsRequest {
-                address: sats_address.cash_addr().to_string(),
-                nb_skip: num_skip as u32,
-                nb_fetch: 100,
-                start_block: None,
-            }).await?;
-            let batch_txs = batch_txs.get_ref();
-            num_skip += batch_txs.confirmed_transactions.len();
-            println!("fetched {} address txs", num_skip);
-            for mempool_tx in &batch_txs.unconfirmed_transactions {
-                if let Some(tx) = &mempool_tx.transaction {
-                    self.add_addr_txs(&mut found_tx_hashes, &mut addr_txs, tx, mempool_tx.added_time, None, sats_address).await?;
+            let batches = try_join_all(
+                (0..num_batches).into_iter().map(|batch_idx| async move {
+                    let addr_txs = self.client.clone().get_address_transactions(GetAddressTransactionsRequest {
+                        address: sats_address.cash_addr().to_string(),
+                        nb_skip: (num_skip + batch_idx * fetch_amount) as u32,
+                        nb_fetch: fetch_amount as u32,
+                        start_block: start_block.map(StartBlock::Height),
+                    }).await;
+                    addr_txs.map(|resp| {
+                        resp.get_ref().clone()
+                    })
+                })
+            ).await?;
+            for batch_txs in batches {
+                num_skip += batch_txs.confirmed_transactions.len();
+                println!("fetched {} address txs", num_skip);
+                for mempool_tx in &batch_txs.unconfirmed_transactions {
+                    if let Some(tx) = &mempool_tx.transaction {
+                        self.add_addr_txs(&mut found_tx_hashes, &mut addr_txs, tx, mempool_tx.added_time, None, sats_address).await?;
+                    }
                 }
-            }
-            for tx in &batch_txs.confirmed_transactions {
-                self.add_addr_txs(&mut found_tx_hashes, &mut addr_txs, tx, tx.timestamp, Some(tx.block_height), sats_address).await?;
-            }
-            if batch_txs.confirmed_transactions.is_empty() {
-                addr_txs.sort_by_key(|tx| -tx.timestamp);
-                return Ok(AddressTxs { txs: addr_txs });
+                for tx in &batch_txs.confirmed_transactions {
+                    self.add_addr_txs(&mut found_tx_hashes, &mut addr_txs, tx, tx.timestamp, Some(tx.block_height), sats_address).await?;
+                }
+                if batch_txs.confirmed_transactions.is_empty() {
+                    addr_txs.sort_by_key(|tx| -tx.timestamp);
+                    return Ok(AddressTxs { txs: addr_txs });
+                }
             }
         }
     }
@@ -550,14 +589,34 @@ impl Bchd {
                     }
                 })
                 .fold((0, 0), |(a_sats, a_tokens), (b_sats, b_tokens)| (a_sats + b_sats, a_tokens + b_tokens));
-            let tx_meta = self.fetch_tx_meta(is_coinbase, tx.block_height, &tx.hash).await?.1;
+            let tx_meta = self.extract_tx_meta(is_coinbase, tx.block_height, &tx);
+            let delta_sats = address_output.0 - address_input.0;
+            let delta_tokens = address_output.1 - address_input.1;
+            let tx_meta = if let Some(block_height) = block_height {
+                let confirmed_address_tx = ConfirmedAddressTx {
+                    timestamp,
+                    block_height,
+                    tx_meta,
+                    delta_sats,
+                    delta_tokens,
+                };
+                self.db.add_confirmed_address_tx(
+                    sats_address.addr_type() as u8,
+                    sats_address.hash().as_slice(),
+                    &tx_hash,
+                    &confirmed_address_tx,
+                )?;
+                confirmed_address_tx.tx_meta
+            } else {
+                tx_meta
+            };
             addr_txs.push(AddressTx {
                 timestamp,
                 block_height,
-                tx: tx.clone(),
+                tx_hash,
                 tx_meta,
-                delta_sats: address_output.0 - address_input.0,
-                delta_tokens: address_output.1 - address_input.1,
+                delta_sats,
+                delta_tokens,
             });
             found_tx_hashes.insert(tx_hash);
         }

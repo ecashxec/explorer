@@ -190,7 +190,7 @@ struct JsonToken {
 struct JsonTxs {
     txs: Vec<JsonTx>,
     tokens: Vec<JsonToken>,
-    token_indices: HashMap<[u8; 32], usize>,
+    token_indices: HashMap<Vec<u8>, usize>,
 }
 
 impl Server {
@@ -225,7 +225,7 @@ impl Server {
 
     async fn json_txs(&self, txs: impl ExactSizeIterator<Item=(&[u8], i64, Option<i32>, &TxMeta, (i64, i64))>) -> Result<JsonTxs> {
         let mut json_txs = Vec::with_capacity(txs.len());
-        let mut token_indices = HashMap::<[u8; 32], usize>::new();
+        let mut token_indices = HashMap::<Vec<u8>, usize>::new();
         for (tx_hash, timestamp, block_height, tx_meta, (delta_sats, delta_tokens)) in txs {
             let mut tx = JsonTx {
                 tx_hash: to_le_hex(&tx_hash),
@@ -249,18 +249,18 @@ impl Server {
             match &tx_meta.variant {
                 TxMetaVariant::Normal => {},
                 TxMetaVariant::InvalidSlp { token_id, token_input } => {
-                    tx_token_id = Some(token_id);
+                    tx_token_id = Some(token_id.clone());
                     tx.is_burned_slp = true;
                     tx.token_input = *token_input;
                 }
                 TxMetaVariant::Slp { token_id, token_input, token_output, action } => {
-                    tx_token_id = Some(token_id);
+                    tx_token_id = Some(token_id.to_vec());
                     tx.token_input = *token_input;
                     tx.token_output = *token_output;
                     tx.slp_action = Some(*action);
                 }
             }
-            if let Some(&token_id) = tx_token_id {
+            if let Some(token_id) = tx_token_id {
                 let num_tokens = token_indices.len();
                 match token_indices.entry(token_id) {
                     Entry::Vacant(vacant) => {
@@ -560,7 +560,7 @@ impl Server {
 
     fn render_tx_variant(&self, variant: &TxMetaVariant, token_meta: &Option<TokenMeta>) -> Markup {
         use SlpAction::*;
-        match (*variant, token_meta) {
+        match (variant, token_meta) {
             (
                 TxMetaVariant::Slp { token_id, action, token_input, token_output },
                 Some(token_meta),
@@ -626,7 +626,7 @@ impl Server {
                         tr {
                             td { "Token Output" }
                             td {
-                                (render_amount(token_output, token_meta.decimals)) " " (ticker)
+                                (render_amount(*token_output, token_meta.decimals)) " " (ticker)
                                 @if token_output < token_input {
                                     br;
                                     " ("
@@ -659,7 +659,7 @@ impl Server {
                 }
             },
             (
-                TxMetaVariant::InvalidSlp { token_id, token_input },
+                TxMetaVariant::InvalidSlp { ref token_id, token_input },
                 Some(token_meta)
             ) => html! {
                 @let ticker = String::from_utf8_lossy(&token_meta.token_ticker);
@@ -681,7 +681,7 @@ impl Server {
                         tr {
                             td { "Tokens burned" }
                             td {
-                                (render_amount(token_input, token_meta.decimals)) " " (ticker)
+                                (render_amount(*token_input, token_meta.decimals)) " " (ticker)
                             }
                         }
                     }
@@ -703,7 +703,7 @@ impl Server {
                         tr {
                             td { "Tokens burned" }
                             td {
-                                (render_integer(token_input))
+                                (render_integer(*token_input))
                             }
                         }
                     }
@@ -905,7 +905,7 @@ impl Server {
         let legacy_address = to_legacy_address(&address);
         let address_txs = self.bchd.address(&sats_address).await?;
         let json_txs = self.json_txs(address_txs.txs.iter().map(|addr_tx| {
-            (addr_tx.tx.hash.as_slice(), addr_tx.timestamp, addr_tx.block_height, &addr_tx.tx_meta, (addr_tx.delta_sats, addr_tx.delta_tokens))
+            (addr_tx.tx_hash.as_ref(), addr_tx.timestamp, addr_tx.block_height, &addr_tx.tx_meta, (addr_tx.delta_sats, addr_tx.delta_tokens))
         })).await?;
         let balance = self.bchd.address_balance(&sats_address).await?;
         #[derive(Serialize)]
@@ -936,7 +936,7 @@ impl Server {
             (
                 utxos.get(0).map(|utxo| utxo.block_height).unwrap_or(0),
                 JsonBalance {
-                    token_idx: token_id.and_then(|token_id| json_txs.token_indices.get(&token_id)).copied(),
+                    token_idx: token_id.and_then(|token_id| json_txs.token_indices.get(token_id.as_ref())).copied(),
                     sats_amount,
                     token_amount,
                     utxos: utxos.into_iter().map(|utxo| JsonUtxo {

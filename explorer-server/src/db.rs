@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::convert::TryInto;
 
 use anyhow::{anyhow, Result};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -31,7 +32,7 @@ pub struct TxMeta {
     pub variant: TxMetaVariant,
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum TxMetaVariant {
     Normal,
     Slp {
@@ -41,7 +42,7 @@ pub enum TxMetaVariant {
         token_id: [u8; 32],
     },
     InvalidSlp {
-        token_id: [u8; 32],
+        token_id: Vec<u8>,
         token_input: u64,
     },
 }
@@ -73,6 +74,15 @@ pub enum SlpAction {
     SlpNft1GroupSend,
     SlpNft1UniqueChildGenesis,
     SlpNft1UniqueChildSend,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ConfirmedAddressTx {
+    pub timestamp: i64,
+    pub block_height: i32,
+    pub tx_meta: TxMeta,
+    pub delta_sats: i64,
+    pub delta_tokens: i64,
 }
 
 impl Db {
@@ -126,6 +136,26 @@ impl Db {
         let tx_out_spend_key = [b"txout:".as_ref(), tx_hash, &tx_out_idx.to_be_bytes()].concat();
         let tx_out_spend = bincode::serialize(tx_out_spend)?;
         self.db.insert(tx_out_spend_key, tx_out_spend)?;
+        Ok(())
+    }
+
+    pub fn confirmed_address_txs(&self, addr_type: u8, addr_hash: &[u8]) -> Result<Vec<([u8; 32], ConfirmedAddressTx)>> {
+        let address_tx_prefix = [b"addrtx:".as_ref(), &[addr_type], &addr_hash].concat();
+        self.db
+            .scan_prefix(address_tx_prefix)
+            .map(|pair| -> Result<_> {
+                let (key, value) = pair?;
+                let tx_hash_start = key.len() - 32;
+                let confirmed_address_tx = bincode::deserialize(&value)?;
+                Ok((key[tx_hash_start..].try_into()?, confirmed_address_tx))
+            })
+            .collect()
+    }
+
+    pub fn add_confirmed_address_tx(&self, addr_type: u8, addr_hash: &[u8], tx_hash: &[u8], address_tx: &ConfirmedAddressTx) -> Result<()> {
+        let address_tx_key = [b"addrtx:".as_ref(), &[addr_type], addr_hash, tx_hash].concat();
+        let address_tx = bincode::serialize(address_tx)?;
+        self.db.insert(address_tx_key, address_tx)?;
         Ok(())
     }
 }
