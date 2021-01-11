@@ -1,7 +1,9 @@
-use std::{convert::Infallible, net::SocketAddr, sync::Arc};
+use std::{collections::HashMap, convert::Infallible, net::SocketAddr, sync::Arc};
 
 use anyhow::{Result, Context};
 use db::Db;
+use indexdb::IndexDb;
+use indexer::Indexer;
 use server::Server;
 use warp::{Filter, Rejection, Reply, hyper::StatusCode};
 use serde::Serialize;
@@ -11,6 +13,9 @@ mod db;
 mod formatting;
 mod grpc;
 mod server;
+mod indexdb;
+mod indexer;
+mod primitives;
 
 type ServerRef = Arc<Server>;
 
@@ -28,8 +33,14 @@ async fn main() -> Result<()> {
         .with_context(|| "Invalid host in config")?;
 
     let db = Db::open("../db.sled")?;
+    let indexdb = IndexDb::open("../index.sled")?;
+    let indexer = Arc::new(Indexer::connect(indexdb).await?);
+    tokio::spawn({
+        let indexer = Arc::clone(&indexer);
+        indexer.run_indexer()
+    });
 
-    let server = Arc::new(Server::setup(db).await?);
+    let server = Arc::new(Server::setup(db, indexer).await?);
 
     let dashboard = warp::path::end()
         .and(with_server(&server))
@@ -39,8 +50,9 @@ async fn main() -> Result<()> {
 
     let blocks = warp::path!("blocks")
         .and(with_server(&server))
-        .and_then(|server: ServerRef| async move {
-            server.blocks().await.map_err(err)
+        .and(warp::query::<HashMap<String, String>>())
+        .and_then(|server: ServerRef, query: HashMap<String, String>| async move {
+            server.blocks(query).await.map_err(err)
         });
 
     let block = warp::path!("block" / String)
@@ -57,8 +69,9 @@ async fn main() -> Result<()> {
     
     let address = warp::path!("address" / String)
         .and(with_server(&server))
-        .and_then(|address: String, server: ServerRef| async move {
-            server.address(&address).await.map_err(err)
+        .and(warp::query::<HashMap<String, String>>())
+        .and_then(|address: String, server: ServerRef, query: HashMap<String, String>| async move {
+            server.address(&address, query).await.map_err(err)
         });
 
     let address_qr = warp::path!("address-qr" / String)
@@ -74,7 +87,7 @@ async fn main() -> Result<()> {
         });
 
     let data_blocks =
-        warp::path!("data" / "blocks" / i32 / i32 / "dat.js")
+        warp::path!("data" / "blocks" / u32 / u32 / "dat.js")
         .and(with_server(&server))
         .and_then(|start_height, end_height, server: ServerRef| async move {
             server.data_blocks(start_height, end_height).await.map_err(err)

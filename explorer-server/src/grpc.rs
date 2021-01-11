@@ -486,7 +486,6 @@ pub struct AddressTxs {
 impl Bchd {
     pub async fn address(&self, sats_address: &Address<'_>) -> Result<AddressTxs> {
         use bchrpc::{GetAddressTransactionsRequest, get_address_transactions_request::StartBlock};
-        let mut bchd = self.client.clone();
         let mut num_skip = 0usize;
         let mut addr_txs = Vec::new();
         let mut found_tx_hashes = HashSet::new();

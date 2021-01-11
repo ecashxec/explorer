@@ -5,22 +5,24 @@ use warp::{Reply, http::Uri};
 use serde::Serialize;
 use chrono::{Utc, TimeZone};
 use chrono_humanize::HumanTime;
-use std::{borrow::Cow, collections::{HashMap, hash_map::Entry}, convert::{TryInto, TryFrom}};
+use std::{borrow::Cow, collections::{HashMap, hash_map::Entry}, convert::{TryInto, TryFrom}, sync::Arc};
 
-use crate::{blockchain::{BlockHeader, Destination, destination_from_script, from_le_hex, to_legacy_address, to_le_hex}, db::{Db, SlpAction, TokenMeta, TxMeta, TxMetaVariant, TxOutSpend}, formatting::{render_amount, render_byte_size, render_difficulty, render_integer, render_sats}, grpc::{AddressBalance, Bchd, bchrpc}};
+use crate::{blockchain::{BlockHeader, Destination, destination_from_script, from_le_hex, to_legacy_address, to_le_hex}, db::Db, formatting::{render_amount, render_byte_size, render_difficulty, render_integer, render_sats}, grpc::bchrpc, indexdb::{AddressBalance, TxOutSpend}, indexer::Indexer, primitives::{SlpAction, TokenMeta, TxMeta, TxMetaVariant}};
 
 pub struct Server {
-    bchd: Bchd,
+    //bchd: Bchd,
+    indexer: Arc<Indexer>,
     satoshi_addr_prefix: &'static str,
     tokens_addr_prefix: &'static str,
 }
 
 impl Server {
-    pub async fn setup(db: Db) -> Result<Self> {
+    pub async fn setup(db: Db, indexer: Arc<Indexer>) -> Result<Self> {
         let satoshi_addr_prefix = "bitcoincash";
-        let bchd = Bchd::connect(db, satoshi_addr_prefix).await?;
+        //let bchd = Bchd::connect(db, satoshi_addr_prefix).await?;
         Ok(Server {
-            bchd,
+            //bchd,
+            indexer,
             satoshi_addr_prefix,
             tokens_addr_prefix: "simpleledger",
         })
@@ -53,13 +55,16 @@ impl Server {
 
     }
 
-    pub async fn blocks(&self) -> Result<impl Reply> {
-        let blockchain_info = self.bchd.blockchain_info().await?;
-        let page_size = 2000;
-        let current_page_height = (blockchain_info.best_height / page_size) * page_size;
-        let current_page_end = blockchain_info.best_height;
-        let last_page_height = current_page_height - page_size;
-        let last_page_end = current_page_height - 1;
+    pub async fn blocks(&self, query: HashMap<String, String>) -> Result<impl Reply> {
+        let half_page_size = 500;
+        let best_height = self.indexer.db().last_block_height()?;
+        let page = query.get("page").and_then(|page| page.parse().ok()).unwrap_or(0u32);
+        let half_page = page * 2;
+        let best_page_height = (best_height / half_page_size) * half_page_size;
+        let first_page_begin = best_page_height.saturating_sub(half_page * half_page_size);
+        let first_page_end = (first_page_begin + half_page_size - 1).min(best_height);
+        let second_page_begin = first_page_begin.saturating_sub(half_page_size);
+        let second_page_end = first_page_begin.saturating_sub(1);
         let markup = html! {
             (DOCTYPE)
             head {
@@ -87,16 +92,17 @@ impl Server {
 
                 (self.footer())
                 
-                script type="text/javascript" src={"/data/blocks/" (current_page_height) "/" (current_page_end) "/dat.js"} {}
-                script type="text/javascript" src={"/data/blocks/" (last_page_height) "/" (last_page_end) "/dat.js"} {}
+                script type="text/javascript" src={"/data/blocks/" (first_page_begin) "/" (first_page_end) "/dat.js?v=0.2"} {}
+                script type="text/javascript" src={"/data/blocks/" (second_page_begin) "/" (second_page_end) "/dat.js?v=0.2"} {}
                 script type="text/javascript" src="/code/blocks.js" {}
             }
         };
         Ok(warp::reply::html(markup.into_string()))
     }
 
-    pub async fn data_blocks(&self, start_height: i32, _end_height: i32) -> Result<impl Reply> {
-        let blocks = self.bchd.blocks_above(start_height - 1).await?;
+    pub async fn data_blocks(&self, start_height: u32, end_height: u32) -> Result<impl Reply> {
+        let num_blocks = end_height.checked_sub(start_height).unwrap() + 1;
+        let blocks = self.indexer.db().block_range(start_height, num_blocks)?;
         #[derive(Serialize)]
         #[serde(rename_all = "camelCase")]
         struct Block {
@@ -112,16 +118,16 @@ impl Server {
             median_time: i64,
         }
         let mut json_blocks = Vec::with_capacity(blocks.len());
-        for block in blocks.into_iter().rev() {
+        for (block_hash, block) in blocks.into_iter().rev() {
             json_blocks.push(Block {
-                hash: to_le_hex(&block.block_info.hash),
-                height: block.block_info.height,
-                version: block.block_info.version,
-                timestamp: block.block_info.timestamp,
-                difficulty: block.block_info.difficulty,
-                size: block.block_meta.size,
-                median_time: block.block_meta.median_time,
-                num_txs: block.block_meta.num_txs,
+                hash: to_le_hex(&block_hash),
+                height: block.height,
+                version: block.version,
+                timestamp: block.timestamp,
+                difficulty: block.difficulty,
+                size: block.size,
+                median_time: block.median_time,
+                num_txs: block.num_txs,
             });
         }
         let encoded_blocks = serde_json::to_string(&json_blocks)?;
@@ -196,10 +202,10 @@ struct JsonTxs {
 impl Server {
     pub async fn data_block_txs(&self, block_hash: &str) -> Result<impl Reply> {
         let block_hash = from_le_hex(block_hash)?;
-        let block_txs = self.bchd.block_txs(&block_hash).await?;
+        let block_txs = self.indexer.block_txs(&block_hash).await?;
         let json_txs = self.json_txs(
             block_txs.iter()
-                .map(|(tx_hash, tx_meta)| (tx_hash.as_slice(), 0, Some(tx_meta.block_height), tx_meta, (0, 0)))
+                .map(|(tx_hash, tx_meta)| (tx_hash.as_ref(), 0, Some(tx_meta.block_height), tx_meta, (0, 0)))
         ).await?;
         let encoded_txs = serde_json::to_string(&json_txs.txs)?;
         let encoded_tokens = serde_json::to_string(&json_txs.tokens)?;
@@ -247,7 +253,7 @@ impl Server {
             };
             let mut tx_token_id = None;
             match &tx_meta.variant {
-                TxMetaVariant::Normal => {},
+                TxMetaVariant::SatsOnly => {},
                 TxMetaVariant::InvalidSlp { token_id, token_input } => {
                     tx_token_id = Some(token_id.clone());
                     tx.is_burned_slp = true;
@@ -276,37 +282,41 @@ impl Server {
             }
             json_txs.push(tx);
         }
-        let tokens = self.bchd.tokens(token_indices.keys().map(|key| &key[..])).await?;
+        let tokens = token_indices
+            .keys()
+            .map(|key| self.indexer.db().token_meta(key))
+            .collect::<Result<Vec<_>, _>>()?;
         let mut token_data = tokens.into_iter().zip(&token_indices).collect::<Vec<_>>();
         token_data.sort_unstable_by_key(|&(_, (_, idx))| idx);
-        let json_tokens = token_data.into_iter().map(|(token_meta, (token_id, _))| {
+        let json_tokens = token_data.into_iter().filter_map(|(token_meta, (token_id, _))| {
+            let token_meta = token_meta?;
             let token_ticker = String::from_utf8_lossy(&token_meta.token_ticker);
             let token_name = String::from_utf8_lossy(&token_meta.token_name);
-            JsonToken {
+            Some(JsonToken {
                 token_id: hex::encode(token_id),
                 token_type: token_meta.token_type,
                 token_ticker: html! { (token_ticker) }.into_string(),
                 token_name: html! { (token_name) }.into_string(),
                 decimals: token_meta.decimals,
                 group_id: token_meta.group_id.map(|group_id| hex::encode(&group_id)),
-            }
+            })
         }).collect::<Vec<_>>();
         Ok(JsonTxs { tokens: json_tokens, txs: json_txs, token_indices })
     }
 
     pub async fn block(&self, block_hash_str: &str) -> Result<impl Reply> {
         let block_hash = from_le_hex(block_hash_str)?;
-        let block_meta_info = self.bchd.block_meta_info(&block_hash).await?;
-        let block_info = block_meta_info.block_info;
-        let block_meta = block_meta_info.block_meta;
-        let timestamp = Utc.timestamp(block_info.timestamp, 0);
+        let block_meta = self.indexer.db().block_meta(&block_hash)?.ok_or_else(|| anyhow!("No such block"))?;
+        let best_height = self.indexer.db().last_block_height()?;
+        let confirmations = best_height - block_meta.height as u32 + 1;
+        let timestamp = Utc.timestamp(block_meta.timestamp, 0);
         let mut block_header = BlockHeader::default();
-        block_header.version = block_info.version;
-        block_header.previous_block = block_info.previous_block.as_slice().try_into()?;
-        block_header.merkle_root = block_info.merkle_root.as_slice().try_into()?;
-        block_header.timestamp = block_info.timestamp.try_into()?;
-        block_header.bits = block_info.bits;
-        block_header.nonce = block_info.nonce;
+        block_header.version = block_meta.version;
+        block_header.previous_block = block_meta.previous_block;
+        block_header.merkle_root = block_meta.merkle_root;
+        block_header.timestamp = block_meta.timestamp.try_into()?;
+        block_header.bits = block_meta.bits;
+        block_header.nonce = block_meta.nonce;
         
         let markup = html! {
             (DOCTYPE)
@@ -320,7 +330,7 @@ impl Server {
                 .ui.container {
                     h1 {
                         "Block #"
-                        (block_info.height)
+                        (block_meta.height)
                     }
                     .ui.segment {
                         strong { "Hash: " }
@@ -336,11 +346,11 @@ impl Server {
                                     }
                                     tr {
                                         td { "Mined on" }
-                                        td { (self.render_timestamp(block_info.timestamp)) }
+                                        td { (self.render_timestamp(block_meta.timestamp)) }
                                     }
                                     tr {
                                         td { "Unix Timestamp" }
-                                        td { (render_integer(block_info.timestamp as u64)) }
+                                        td { (render_integer(block_meta.timestamp as u64)) }
                                     }
                                     tr {
                                         td { "Mined by" }
@@ -348,7 +358,7 @@ impl Server {
                                     }
                                     tr {
                                         td { "Confirmations" }
-                                        td { (block_info.confirmations) }
+                                        td { (confirmations) }
                                     }
                                     tr {
                                         td { "Size" }
@@ -366,7 +376,7 @@ impl Server {
                                 tbody {
                                     tr {
                                         td { "Difficulty" }
-                                        td { (render_difficulty(block_info.difficulty)) }
+                                        td { (render_difficulty(block_meta.difficulty)) }
                                     }
                                     tr {
                                         td { "Header" }
@@ -378,7 +388,7 @@ impl Server {
                                     }
                                     tr {
                                         td { "Nonce" }
-                                        td { (block_info.nonce) }
+                                        td { (block_meta.nonce) }
                                     }
                                     tr {
                                         td { "Coinbase data" }
@@ -417,19 +427,22 @@ impl Server {
 
     pub async fn tx(&self, tx_hash_str: &str) -> Result<impl Reply> {
         let tx_hash = from_le_hex(tx_hash_str)?;
-        let tx = self.bchd.tx(&tx_hash).await?;
-        let tx = tx.unwrap();
+        let tx = self.indexer.tx(&tx_hash).await?;
         let title: Cow<str> = match tx.tx_meta.variant {
-            TxMetaVariant::Normal => "ABC Transaction".into(),
+            TxMetaVariant::SatsOnly => "ABC Transaction".into(),
             TxMetaVariant::InvalidSlp {..} => "Invalid SLP Transaction".into(),
             TxMetaVariant::Slp {..} => {
                 let token_meta = tx.token_meta.as_ref().ok_or_else(|| anyhow!("No token meta"))?;
                 format!("{} Token Transaction", String::from_utf8_lossy(&token_meta.token_ticker)).into()
             }
         };
-        let block_meta_info = self.bchd.block_meta_info(&tx.transaction.block_hash).await?;
-        let block_info = block_meta_info.block_info;
-        let timestamp = Utc.timestamp(block_info.timestamp, 0);
+        let block_meta = self.indexer.db().block_meta(&tx.transaction.block_hash)?;
+        let best_height = self.indexer.db().last_block_height()?;
+        let confirmations = match &block_meta {
+            Some(block_meta) => best_height - block_meta.height as u32 + 1,
+            None => 0,
+        };
+        let timestamp = Utc.timestamp(tx.transaction.timestamp, 0);
         let markup = html! {
             (DOCTYPE)
             head {
@@ -470,21 +483,36 @@ impl Server {
                                     }
                                     tr {
                                         td { "Mined on" }
-                                        td { (self.render_timestamp(block_info.timestamp)) }
+                                        td {
+                                            @match &block_meta {
+                                                Some(block_meta) => (self.render_timestamp(block_meta.timestamp)),
+                                                None => "Not mined yet",
+                                            }
+                                        }
                                     }
                                     tr {
                                         td { "Unix Timestamp" }
-                                        td { (render_integer(block_info.timestamp as u64)) }
+                                        td {
+                                            @match &block_meta {
+                                                Some(block_meta) => (render_integer(block_meta.timestamp as u64)),
+                                                None => "Not mined yet",
+                                            }
+                                        }
                                     }
                                     tr {
                                         td { "Block" }
                                         td {
-                                            a href={"/block/" (to_le_hex(&tx.transaction.block_hash))} {
-                                                (render_integer(tx.transaction.block_height as u64))
+                                            @match &block_meta {
+                                                Some(block_meta) => {
+                                                    a href={"/block/" (to_le_hex(&tx.transaction.block_hash))} {
+                                                        (render_integer(tx.transaction.block_height as u64))
+                                                    }
+                                                    " ("
+                                                    (render_integer(confirmations as u64))
+                                                    " confirmations)"
+                                                },
+                                                None => "Not mined yet",
                                             }
-                                            " ("
-                                            (render_integer(block_info.confirmations as u64))
-                                            " confirmations)"
                                         }
                                     }
                                     tr {
@@ -900,16 +928,23 @@ impl Server {
 }
 
 impl Server {
-    pub async fn address(&self, address: &str) -> Result<impl Reply> {
+    pub async fn address(&self, address: &str, query: HashMap<String, String>) -> Result<impl Reply> {
         let address = Address::from_cash_addr(address)?;
+        let txs_page: usize = query.get("tx_page").map(|s| s.as_str()).unwrap_or("0").parse()?;
+        let coins_page: usize = query.get("coin_page").map(|s| s.as_str()).unwrap_or("0").parse()?;
+        let page_size = 500;
         let sats_address = address.with_prefix(self.satoshi_addr_prefix);
         let token_address = address.with_prefix(self.tokens_addr_prefix);
         let legacy_address = to_legacy_address(&address);
-        let address_txs = self.bchd.address(&sats_address).await?;
-        let json_txs = self.json_txs(address_txs.txs.iter().map(|addr_tx| {
-            (addr_tx.tx_hash.as_ref(), addr_tx.timestamp, addr_tx.block_height, &addr_tx.tx_meta, (addr_tx.delta_sats, addr_tx.delta_tokens))
-        })).await?;
-        let balance = self.bchd.address_balance(&sats_address).await?;
+        let address_txs = self.indexer.db().address(&sats_address, txs_page * page_size, page_size)?;
+        let json_txs = self.json_txs(
+            address_txs
+                .iter()
+                .map(|(tx_hash, addr_tx, tx_meta)| {
+                    (tx_hash.as_ref(), addr_tx.timestamp, Some(addr_tx.block_height), tx_meta, (addr_tx.delta_sats, addr_tx.delta_tokens))
+                })
+        ).await?;
+        let balance = self.indexer.db().address_balance(&sats_address, coins_page * page_size, page_size)?;
         #[derive(Serialize)]
         #[serde(rename_all = "camelCase")]
         struct JsonUtxo {
@@ -934,16 +969,16 @@ impl Server {
             .sum::<i64>();
         let mut json_balances = utxos.into_iter().map(|(token_id, mut utxos)| {
             let (sats_amount, token_amount) = balances[&token_id];
-            utxos.sort_by_key(|utxo| -utxo.block_height);
+            utxos.sort_by_key(|(_, utxo)| -utxo.block_height);
             (
-                utxos.get(0).map(|utxo| utxo.block_height).unwrap_or(0),
+                utxos.get(0).map(|(_, utxo)| utxo.block_height).unwrap_or(0),
                 JsonBalance {
                     token_idx: token_id.and_then(|token_id| json_txs.token_indices.get(token_id.as_ref())).copied(),
                     sats_amount,
                     token_amount,
-                    utxos: utxos.into_iter().map(|utxo| JsonUtxo {
-                        tx_hash: to_le_hex(&utxo.tx_hash),
-                        out_idx: utxo.out_idx,
+                    utxos: utxos.into_iter().map(|(utxo_key, utxo)| JsonUtxo {
+                        tx_hash: to_le_hex(&utxo_key.tx_hash),
+                        out_idx: utxo_key.out_idx.get(),
                         sats_amount: utxo.sats_amount,
                         token_amount: utxo.token_amount,
                         is_coinbase: utxo.is_coinbase,
@@ -1132,12 +1167,13 @@ impl Server {
     }
 
     pub async fn search(&self, query: &str) -> Result<Box<dyn Reply>> {
-        match self.bchd.search(query).await? {
+        /*match self.bchd.search(query).await? {
             Some(url) => Ok(Box::new(warp::redirect(Uri::try_from(url.as_str())?))),
             None => Ok(Box::new(warp::reply::html(html! {
                 h1 { "Not found" }
             }.into_string())))
-        }
+        }*/
+        Ok(Box::new(""))
     }
 }
 
