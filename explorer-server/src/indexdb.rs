@@ -63,8 +63,13 @@ pub struct AddressBalance {
 
 impl IndexDb {
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
-        let cfs = rocksdb::DB::list_cf(&Options::default(), &path)?;
-        let mut db = rocksdb::DB::open_cf(&Options::default(), &path, cfs)?;
+        let mut db;
+        if path.as_ref().exists() {
+            let cfs = rocksdb::DB::list_cf(&Options::default(), &path)?;
+            db = rocksdb::DB::open_cf(&Options::default(), &path, cfs)?;
+        } else {
+            db = rocksdb::DB::open_default(&path)?;
+        }
         Self::ensure_cf(&mut db, "block_height_idx")?;
         Self::ensure_cf(&mut db, "block_meta")?;
         Self::ensure_cf(&mut db, "tx_meta")?;
