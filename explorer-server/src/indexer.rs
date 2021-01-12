@@ -33,6 +33,7 @@ impl tokio_rustls::rustls::ServerCertVerifier for NopCertVerifier {
     }
 }
 
+const ALPN_H2: &str = "h2";
 impl Indexer {
     pub async fn connect(db: IndexDb) -> Result<Self> {
         use std::fs;
@@ -41,6 +42,7 @@ impl Indexer {
         let mut cert = Vec::new();
         cert_file.read_to_end(&mut cert)?;
         let mut config =  tokio_rustls::rustls::ClientConfig::new();
+        config.set_protocols(&[Vec::from(&ALPN_H2[..])]);
         let mut dangerous_config =  tokio_rustls::rustls::DangerousClientConfig {
             cfg: &mut config,
         };
