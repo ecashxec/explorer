@@ -19,6 +19,20 @@ pub struct Tx {
     pub tx_out_spends: HashMap<u32, Option<TxOutSpend>>,
 }
 
+struct NopCertVerifier;
+
+impl tokio_rustls::rustls::ServerCertVerifier for NopCertVerifier {
+    fn verify_server_cert(
+        &self,
+        _roots: & tokio_rustls::rustls::RootCertStore,
+        _presented_certs: &[ tokio_rustls::rustls::Certificate],
+        _dns_name: webpki::DNSNameRef,
+        _ocsp_response: &[u8],
+    ) -> Result< tokio_rustls::rustls::ServerCertVerified,  tokio_rustls::rustls::TLSError> {
+        Ok( tokio_rustls::rustls::ServerCertVerified::assertion())
+    }
+}
+
 impl Indexer {
     pub async fn connect(db: IndexDb) -> Result<Self> {
         use std::fs;
@@ -26,8 +40,15 @@ impl Indexer {
         let mut cert_file = fs::File::open("cert.crt")?;
         let mut cert = Vec::new();
         cert_file.read_to_end(&mut cert)?;
-        let tls_config = ClientTlsConfig::new().ca_certificate(Certificate::from_pem(&cert));
-        let endpoint = Endpoint::from_static("https://api2.be.cash:8445").tls_config(tls_config)?;
+        let mut config =  tokio_rustls::rustls::ClientConfig::new();
+        let mut dangerous_config =  tokio_rustls::rustls::DangerousClientConfig {
+            cfg: &mut config,
+        };
+        dangerous_config.set_certificate_verifier(Arc::new(NopCertVerifier));
+        let tls_config = ClientTlsConfig::new()
+            .ca_certificate(Certificate::from_pem(&cert))
+            .rustls_client_config(config);
+        let endpoint = Endpoint::from_static("http://localhost:8445").tls_config(tls_config)?;
         let bchd = BchrpcClient::connect(endpoint).await?;
         Ok(Indexer { bchd, db })
     }
