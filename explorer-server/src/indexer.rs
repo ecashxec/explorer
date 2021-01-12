@@ -100,7 +100,7 @@ impl Indexer {
     async fn run_indexer_inner(self: Arc<Self>) -> Result<()> {
         let last_height = self.db.last_block_height().unwrap() as usize;
         let current_height = Arc::new(AtomicUsize::new(last_height));
-        let num_threads = 100;
+        let num_threads = 500;
         let (send_batches, mut receive_batches) = mpsc::channel(num_threads * 2);
         let mut join_handles = Vec::with_capacity(num_threads);
         for _ in 0..num_threads {
@@ -129,6 +129,7 @@ impl Indexer {
                         "Added {} blocks in {:.1}s, to block height {}",
                         last_update_blocks, elapsed as f64 / 1000.0, current_height,
                     );
+                    println!("{} in shelf", block_shelf.len());
                     let flush_start = Instant::now();
                     self.db.flush()?;
                     println!("Flush took {:.2}s", flush_start.elapsed().as_secs_f64());

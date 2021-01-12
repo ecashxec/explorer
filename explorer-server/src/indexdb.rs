@@ -8,7 +8,7 @@ use zerocopy::{AsBytes, FromBytes, U32, Unaligned};
 use bitcoin_cash::{Address, Hashed};
 use byteorder::BE;
 
-use crate::{blockchain::{Destination, destination_from_script, is_coinbase}, grpc::bchrpc, primitives::{AddressTx, BlockMeta, SlpAction, TokenMeta, Tx, TxInput, TxMeta, TxMetaVariant, TxOutput, Utxo}};
+use crate::{blockchain::{Destination, destination_from_script, is_coinbase, to_le_hex}, grpc::bchrpc, primitives::{AddressTx, BlockMeta, SlpAction, TokenMeta, Tx, TxInput, TxMeta, TxMetaVariant, TxOutput, Utxo}};
 
 pub struct IndexDb {
     db: rocksdb::DB,
@@ -232,7 +232,8 @@ impl IndexDb {
             if addr_utxo_key.addr != addr_prefix {
                 break;
             }
-            let utxo = self.utxo(&addr_utxo_key.utxo_key)?.ok_or_else(|| anyhow!("No utxo"))?;
+            let utxo = self.utxo(&addr_utxo_key.utxo_key)?
+                .ok_or_else(|| anyhow!("No such utxo: {}:{}", to_le_hex(&addr_utxo_key.utxo_key.tx_hash), addr_utxo_key.utxo_key.out_idx))?;
             let token_utxos = utxos.entry(utxo.token_id).or_insert(vec![]);
             let (balance_sats, balance_token) = balances.entry(utxo.token_id).or_insert((0, 0));
             *balance_sats += utxo.sats_amount;
