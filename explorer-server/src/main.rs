@@ -1,7 +1,6 @@
 use std::{collections::HashMap, convert::Infallible, net::SocketAddr, sync::Arc};
 
 use anyhow::{Result, Context};
-use db::Db;
 use indexdb::IndexDb;
 use indexer::Indexer;
 use server::Server;
@@ -32,15 +31,15 @@ async fn main() -> Result<()> {
         .parse()
         .with_context(|| "Invalid host in config")?;
 
-    let db = Db::open("../db.sled")?;
-    let indexdb = IndexDb::open("../index.sled")?;
+    //let db = Db::open("../db.sled")?;
+    let indexdb = IndexDb::open("../index.rocksdb")?;
     let indexer = Arc::new(Indexer::connect(indexdb).await?);
     tokio::spawn({
         let indexer = Arc::clone(&indexer);
         indexer.run_indexer()
     });
 
-    let server = Arc::new(Server::setup(db, indexer).await?);
+    let server = Arc::new(Server::setup(indexer).await?);
 
     let dashboard = warp::path::end()
         .and(with_server(&server))

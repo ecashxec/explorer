@@ -121,7 +121,7 @@ impl Indexer {
             block_shelf.insert(block_batches.block_height as usize, block_batches);
             while block_shelf.contains_key(&current_height) {
                 let block_batches = block_shelf.remove(&current_height).unwrap();
-                self.db.apply_block_batches(&block_batches)?;
+                self.db.apply_block_batches(block_batches)?;
                 last_update_blocks += 1;
                 let elapsed = last_update_time.elapsed().as_millis();
                 if elapsed > 10_000 {
@@ -130,7 +130,7 @@ impl Indexer {
                         last_update_blocks, elapsed as f64 / 1000.0, current_height,
                     );
                     let flush_start = Instant::now();
-                    self.db.flush_async().await?;
+                    self.db.flush()?;
                     println!("Flush took {:.2}s", flush_start.elapsed().as_secs_f64());
                     last_update_blocks = 0;
                     last_update_time = Instant::now();
@@ -156,8 +156,8 @@ impl Indexer {
             match result {
                 Ok(block) => {
                     if let Some(block) = &block.get_ref().block {
-                        let batches = IndexDb::make_block_batches(block)?;
-                        send_batches.send(batches).await?;
+                        let batches = self.db.make_block_batches(block)?;
+                        send_batches.send(batches).await.map_err(|_| anyhow!("Send failed"))?;
                     }
                 }
                 Err(err) => {

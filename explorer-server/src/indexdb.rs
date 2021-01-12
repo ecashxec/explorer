@@ -3,40 +3,20 @@ use std::convert::TryInto;
 
 use anyhow::{Result, anyhow, bail};
 use serde::de::DeserializeOwned;
-use sled::{Batch, transaction::{
-    ConflictableTransactionError, ConflictableTransactionResult, TransactionError, Transactional,
-    TransactionalTree,
-}};
-use sled::Tree;
+use rocksdb::{ColumnFamily, Options, WriteBatch};
 use zerocopy::{AsBytes, FromBytes, U32, Unaligned};
-use bitcoin_cash::{Address, AddressType, Hash160, Hashed};
+use bitcoin_cash::{Address, Hashed};
 use byteorder::BE;
 
 use crate::{blockchain::{Destination, destination_from_script, is_coinbase}, grpc::bchrpc, primitives::{AddressTx, BlockMeta, SlpAction, TokenMeta, Tx, TxInput, TxMeta, TxMetaVariant, TxOutput, Utxo}};
 
 pub struct IndexDb {
-    db: sled::Db,
-    db_block_height_idx: Tree,
-    db_block_meta: Tree,
-    db_tx_meta: Tree,
-    db_addr_tx_meta: Tree,
-    db_addr_utxo_set: Tree,
-    db_utxo_set: Tree,
-    db_tx_out_spend: Tree,
-    db_token_meta: Tree,
+    db: rocksdb::DB,
 }
 
-#[derive(Debug, Clone)]
 pub struct BlockBatches {
     pub block_height: i32,
-    batch_block_height_idx: Batch,
-    batch_block_meta: Batch,
-    batch_tx_meta: Batch,
-    batch_addr_tx_meta: Batch,
-    batch_addr_utxo_set: Batch,
-    batch_utxo_set: Batch,
-    batch_tx_out_spend: Batch,
-    batch_token_meta: Batch,
+    batch: WriteBatch,
 }
 
 #[derive(FromBytes, AsBytes, Unaligned, Debug, Default, Clone, Copy)]
@@ -48,7 +28,7 @@ pub struct AddrTxKey {
     pub tx_hash: [u8; 32],
 }
 
-#[derive(FromBytes, AsBytes, Unaligned, Debug, Default, Clone, Copy)]
+#[derive(FromBytes, AsBytes, Unaligned, Debug, Default, Clone, Copy, PartialEq, Eq)]
 #[repr(C)]
 pub struct AddrKeyPrefix {
     pub addr_type: u8,
@@ -83,33 +63,59 @@ pub struct AddressBalance {
 
 impl IndexDb {
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
-        let db = sled::open(path.as_ref())?;
-        let db_block_height_idx = db.open_tree(b"block_height_idx")?;
-        let db_block_meta = db.open_tree(b"block_meta")?;
-        let db_tx_meta = db.open_tree(b"tx_meta")?;
-        let db_addr_tx_meta = db.open_tree(b"addr_tx_meta")?;
-        let db_addr_utxo_set = db.open_tree(b"addr_utxo")?;
-        let db_utxo_set = db.open_tree(b"utxo_set")?;
-        let db_tx_out_spend = db.open_tree(b"tx_out_spend")?;
-        let db_token_meta = db.open_tree(b"token_meta")?;
+        let cfs = rocksdb::DB::list_cf(&Options::default(), &path)?;
+        let mut db = rocksdb::DB::open_cf(&Options::default(), &path, cfs)?;
+        Self::ensure_cf(&mut db, "block_height_idx")?;
+        Self::ensure_cf(&mut db, "block_meta")?;
+        Self::ensure_cf(&mut db, "tx_meta")?;
+        Self::ensure_cf(&mut db, "addr_tx_meta")?;
+        Self::ensure_cf(&mut db, "addr_utxo")?;
+        Self::ensure_cf(&mut db, "utxo_set")?;
+        Self::ensure_cf(&mut db, "tx_out_spend")?;
+        Self::ensure_cf(&mut db, "token_meta")?;
         Ok(IndexDb {
             db,
-            db_block_height_idx,
-            db_block_meta,
-            db_tx_meta,
-            db_addr_tx_meta,
-            db_addr_utxo_set,
-            db_utxo_set,
-            db_tx_out_spend,
-            db_token_meta,
         })
     }
 
+    fn ensure_cf(db: &mut rocksdb::DB, name: &str) -> Result<()> {
+        if let None = db.cf_handle(name) {
+            db.create_cf(name, &Options::default())?;
+        }
+        Ok(())
+    }
+
+    fn cf_block_height_idx(&self) -> &ColumnFamily {
+        self.db.cf_handle("block_height_idx").expect("No such column family")
+    }
+    fn cf_block_meta(&self) -> &ColumnFamily {
+        self.db.cf_handle("block_meta").expect("No such column family")
+    }
+    fn cf_tx_meta(&self) -> &ColumnFamily {
+        self.db.cf_handle("tx_meta").expect("No such column family")
+    }
+    fn cf_addr_tx_meta(&self) -> &ColumnFamily {
+        self.db.cf_handle("addr_tx_meta").expect("No such column family")
+    }
+    fn cf_addr_utxo(&self) -> &ColumnFamily {
+        self.db.cf_handle("addr_utxo").expect("No such column family")
+    }
+    fn cf_utxo_set(&self) -> &ColumnFamily {
+        self.db.cf_handle("utxo_set").expect("No such column family")
+    }
+    fn cf_tx_out_spend(&self) -> &ColumnFamily {
+        self.db.cf_handle("tx_out_spend").expect("No such column family")
+    }
+    fn cf_token_meta(&self) -> &ColumnFamily {
+        self.db.cf_handle("token_meta").expect("No such column family")
+    }
+
     pub fn last_block_height(&self) -> Result<u32> {
-        match self.db_block_height_idx.iter().last() {
-            Some(pair) => {
-                let (key, _) = pair?;
-                let key: [u8; 4] = key[..].try_into()?;
+        let mut iterator = self.db.raw_iterator_cf(self.cf_block_height_idx());
+        iterator.seek_to_last();
+        match iterator.key() {
+            Some(key) => {
+                let key: [u8; 4] = key.try_into()?;
                 let height = u32::from_be_bytes(key);
                 Ok(height)
             }
@@ -119,44 +125,60 @@ impl IndexDb {
 
     pub fn block_range(&self, start_height: u32, num_blocks: u32) -> Result<Vec<([u8; 32], BlockMeta)>> {
         let start_key = start_height.to_be_bytes();
-        let end_key = (start_height + num_blocks).to_be_bytes();
         let mut block_metas = Vec::with_capacity(num_blocks as usize);
-        for pair in self.db_block_height_idx.range(start_key.as_ref()..end_key.as_ref()) {
-            let (_, hash) = pair?;
-            let hash: [u8; 32] = hash[..].try_into()?;
-            let block_meta: BlockMeta = db_get(&self.db_block_meta, &hash)?;
-            block_metas.push((hash, block_meta));
+        let mut iterator = self.db.raw_iterator_cf(self.cf_block_height_idx());
+        iterator.seek(&start_key);
+        let cf_block_meta = self.cf_block_meta();
+        for _ in 0..num_blocks {
+            if let Some(value) = iterator.value() {
+                let hash: [u8; 32] = value.try_into()?;
+                let block_meta: BlockMeta = self.db_get(cf_block_meta, &hash)?;
+                block_metas.push((hash, block_meta));
+            } else {
+                break;
+            }
+            iterator.next();
         }
         Ok(block_metas)
     }
 
     pub fn block_meta(&self, block_hash: &[u8]) -> Result<Option<BlockMeta>> {
-        db_get_option(&self.db_block_meta, block_hash)
+        self.db_get_option(self.cf_block_meta(), block_hash)
     }
 
     pub fn tx_meta(&self, tx_hash: &[u8]) -> Result<Option<TxMeta>> {
-        db_get_option(&self.db_tx_meta, tx_hash)
+        self.db_get_option(self.cf_tx_meta(), tx_hash)
     }
 
     pub fn token_meta(&self, token_id: &[u8]) -> Result<Option<TokenMeta>> {
-        db_get_option(&self.db_token_meta, token_id)
+        self.db_get_option(self.cf_token_meta(), token_id)
     }
 
     pub fn tx_out_spends(&self, tx_hash: &[u8]) -> Result<HashMap<u32, Option<TxOutSpend>>> {
         let mut spends = HashMap::new();
-        for pair in self.db_tx_out_spend.scan_prefix(tx_hash) {
-            let (key, value) = pair?;
+        let mut iter_spends = self.db.raw_iterator_cf(self.cf_tx_out_spend());
+        iter_spends.seek(tx_hash);
+        while let (Some(key), Some(value)) = (iter_spends.key(), iter_spends.value()) {
             let mut utxo_key = UtxoKey::default();
             utxo_key.as_bytes_mut().copy_from_slice(&key);
+            if &utxo_key.tx_hash != tx_hash {
+                break;
+            }
             let mut tx_out_spend = TxOutSpend::default();
             tx_out_spend.as_bytes_mut().copy_from_slice(&value);
             spends.insert(utxo_key.out_idx.get(), Some(tx_out_spend));
+            iter_spends.next();
         }
-        for pair in self.db_utxo_set.scan_prefix(tx_hash) {
-            let (key, _) = pair?;
+        let mut iter_utxos = self.db.raw_iterator_cf(self.cf_utxo_set());
+        iter_utxos.seek(tx_hash);
+        while let Some(key) = iter_utxos.key() {
             let mut utxo_key = UtxoKey::default();
             utxo_key.as_bytes_mut().copy_from_slice(&key);
+            if &utxo_key.tx_hash != tx_hash {
+                break;
+            }
             spends.insert(utxo_key.out_idx.get(), None);
+            iter_utxos.next();
         }
         Ok(spends)
     }
@@ -167,19 +189,30 @@ impl IndexDb {
             addr_hash: address.hash().as_slice().try_into().unwrap(),
         };
         let mut entries = Vec::new();
-        for pair in self.db_addr_tx_meta.scan_prefix(addr_prefix.as_bytes()).rev().skip(skip).take(take) {
-            let (key, value) = pair?;
+        let mut iter_addr_tx = self.db.raw_iterator_cf(self.cf_addr_tx_meta());
+        iter_addr_tx.seek(addr_prefix.as_bytes());
+        (0..skip).for_each(|_| iter_addr_tx.next());
+        let mut n = 0;
+        while let (Some(key), Some(value)) = (iter_addr_tx.key(), iter_addr_tx.value()) {
+            if n == take {
+                break;
+            }
             let mut addr_tx_key = AddrTxKey::default();
             addr_tx_key.as_bytes_mut().copy_from_slice(&key);
+            if addr_tx_key.addr_hash != addr_prefix.addr_hash {
+                break;
+            }
             let address_tx: AddressTx = bincode::deserialize(&value)?;
             let tx_meta = self.tx_meta(&addr_tx_key.tx_hash)?.ok_or_else(|| anyhow!("No tx meta"))?;
             entries.push((addr_tx_key.tx_hash, address_tx, tx_meta));
+            iter_addr_tx.next();
+            n += 1;
         }
         Ok(entries)
     }
 
     pub fn utxo(&self, utxo_key: &UtxoKey) -> Result<Option<Utxo>> {
-        db_get_option(&self.db_utxo_set, utxo_key.as_bytes())
+        self.db_get_option(self.cf_utxo_set(), utxo_key.as_bytes())
     }
 
     pub fn address_balance(&self, sats_address: &Address<'_>, skip: usize, take: usize) -> Result<AddressBalance> {
@@ -191,51 +224,30 @@ impl IndexDb {
         };
         utxos.insert(None, vec![]);
         balances.insert(None, (0, 0));
-        for pair in self.db_addr_utxo_set.scan_prefix(addr_prefix.as_bytes()) {
-            let (key, _) = pair?;
+        let mut iter_addr_utxo = self.db.raw_iterator_cf(self.cf_addr_utxo());
+        iter_addr_utxo.seek(addr_prefix.as_bytes());
+        while let Some(key) = iter_addr_utxo.key() {
             let mut addr_utxo_key = AddrUtxoKey::default();
             addr_utxo_key.as_bytes_mut().copy_from_slice(&key);
+            if addr_utxo_key.addr != addr_prefix {
+                break;
+            }
             let utxo = self.utxo(&addr_utxo_key.utxo_key)?.ok_or_else(|| anyhow!("No utxo"))?;
             let token_utxos = utxos.entry(utxo.token_id).or_insert(vec![]);
             let (balance_sats, balance_token) = balances.entry(utxo.token_id).or_insert((0, 0));
             *balance_sats += utxo.sats_amount;
             *balance_token += utxo.token_amount;
             token_utxos.push((addr_utxo_key.utxo_key, utxo));
+            iter_addr_utxo.next();
         }
         Ok(AddressBalance { utxos, balances })
     }
 
-    pub fn apply_block_batches(&self, block_batches: &BlockBatches) -> Result<()> {
-        (
-            &self.db_block_meta,
-            &self.db_block_height_idx,
-            &self.db_tx_meta,
-            &self.db_addr_tx_meta,
-            &self.db_addr_utxo_set,
-            &self.db_utxo_set,
-            &self.db_tx_out_spend,
-            &self.db_token_meta,
-        ).transaction(|(db_block_meta,
-                        db_block_height_idx,
-                        db_tx_meta,
-                        db_addr_tx_meta,
-                        db_addr_utxo_set,
-                        db_utxo_set,
-                        db_tx_out_spend,
-                        db_token_meta)| {
-            db_block_meta.apply_batch(&block_batches.batch_block_meta).map_err(abort_tx)?;
-            db_block_height_idx.apply_batch(&block_batches.batch_block_height_idx).map_err(abort_tx)?;
-            db_tx_meta.apply_batch(&block_batches.batch_tx_meta).map_err(abort_tx)?;
-            db_addr_tx_meta.apply_batch(&block_batches.batch_addr_tx_meta).map_err(abort_tx)?;
-            db_addr_utxo_set.apply_batch(&block_batches.batch_addr_utxo_set).map_err(abort_tx)?;
-            db_utxo_set.apply_batch(&block_batches.batch_utxo_set).map_err(abort_tx)?;
-            db_tx_out_spend.apply_batch(&block_batches.batch_tx_out_spend).map_err(abort_tx)?;
-            db_token_meta.apply_batch(&block_batches.batch_token_meta).map_err(abort_tx)?;
-            Ok(())
-        }).map_err(tx_error)
+    pub fn apply_block_batches(&self, block_batches: BlockBatches) -> Result<()> {
+        Ok(self.db.write(block_batches.batch)?)
     }
 
-    pub fn make_block_batches(block: &bchrpc::Block) -> Result<BlockBatches> {
+    pub fn make_block_batches(&self, block: &bchrpc::Block) -> Result<BlockBatches> {
         use bchrpc::block::transaction_data::TxidsOrTxs;
         let block_info = block.info.as_ref().ok_or_else(|| anyhow!("No block info"))?;
         let txs = block.transaction_data.iter()
@@ -246,73 +258,21 @@ impl IndexDb {
                 }
             })
             .collect::<Result<Vec<_>, _>>()?;
+        let mut batch = WriteBatch::default();
+        self.add_block_height_idx(&mut batch, block_info);
+        self.add_block_meta(&mut batch, block_info, &txs)?;
+        self.update_addr_utxo_set(&mut batch, &txs)?;
+        self.update_utxo_set(&mut batch, &txs)?;
+        for tx in txs {
+            self.add_tx_meta(&mut batch, tx)?;
+            self.add_addr_tx_meta(&mut batch, tx)?;
+            self.add_tx_out_spend(&mut batch, tx)?;
+            self.add_token_meta(&mut batch, tx)?;
+        }
         Ok(BlockBatches {
             block_height: block_info.height,
-            batch_block_height_idx: Self::make_batch_block_height_idx(block_info),
-            batch_block_meta: Self::make_batch_block_meta(block_info, &txs)?,
-            batch_tx_meta: Self::make_batch_tx_meta(&txs)?,
-            batch_addr_tx_meta: Self::make_batch_addr_tx_meta(&txs)?,
-            batch_addr_utxo_set: Self::make_batch_addr_utxo_set(&txs)?,
-            batch_utxo_set: Self::make_batch_utxo_set(&txs)?,
-            batch_tx_out_spend: Self::make_batch_tx_out_spend(&txs)?,
-            batch_token_meta: Self::make_batch_token_meta(&txs)?,
+            batch,
         })
-    }
-
-    fn make_batch_block_height_idx(block_info: &bchrpc::BlockInfo) -> Batch {
-        let mut batch = Batch::default();
-        Self::add_block_height_idx(&mut batch, block_info);
-        batch
-    }
-
-    fn make_batch_block_meta(block_info: &bchrpc::BlockInfo, txs: &[&bchrpc::Transaction]) -> Result<Batch> {
-        let mut batch = Batch::default();
-        Self::add_block_meta(&mut batch, block_info, &txs)?;
-        Ok(batch)
-    }
-
-    fn make_batch_tx_meta(txs: &[&bchrpc::Transaction]) -> Result<Batch> {
-        let mut batch = Batch::default();
-        for tx in txs {
-            Self::add_tx_meta(&mut batch, tx)?;
-        }
-        Ok(batch)
-    }
-
-    fn make_batch_addr_tx_meta(txs: &[&bchrpc::Transaction]) -> Result<Batch> {
-        let mut batch = Batch::default();
-        for tx in txs {
-            Self::add_addr_tx_meta(&mut batch, tx)?;
-        }
-        Ok(batch)
-    }
-
-    fn make_batch_addr_utxo_set(txs: &[&bchrpc::Transaction]) -> Result<Batch> {
-        let mut batch = Batch::default();
-        Self::update_addr_utxo_set(&mut batch, txs)?;
-        Ok(batch)
-    }
-
-    fn make_batch_utxo_set(txs: &[&bchrpc::Transaction]) -> Result<Batch> {
-        let mut batch = Batch::default();
-        Self::update_utxo_set(&mut batch, txs)?;
-        Ok(batch)
-    }
-
-    fn make_batch_tx_out_spend(txs: &[&bchrpc::Transaction]) -> Result<Batch> {
-        let mut batch = Batch::default();
-        for tx in txs {
-            Self::add_tx_out_spend(&mut batch, tx)?;
-        }
-        Ok(batch)
-    }
-
-    fn make_batch_token_meta(txs: &[&bchrpc::Transaction]) -> Result<Batch> {
-        let mut batch = Batch::default();
-        for tx in txs {
-            Self::add_token_meta(&mut batch, tx)?;
-        }
-        Ok(batch)
     }
 
     pub fn flush(&self) -> Result<()> {
@@ -320,17 +280,12 @@ impl IndexDb {
         Ok(())
     }
 
-    pub async fn flush_async(&self) -> Result<()> {
-        self.db.flush_async().await?;
-        Ok(())
-    }
-
-    fn add_block_height_idx(batch_block_height_idx: &mut Batch, block_info: &bchrpc::BlockInfo) {
+    fn add_block_height_idx(&self, batch: &mut WriteBatch, block_info: &bchrpc::BlockInfo) {
         let block_height = block_info.height as u32;
-        batch_block_height_idx.insert(block_height.to_be_bytes().as_ref(), block_info.hash.clone());
+        batch.put_cf(self.cf_block_height_idx(), block_height.to_be_bytes(), &block_info.hash);
     }
 
-    fn add_block_meta(batch_block_meta: &mut Batch, block_info: &bchrpc::BlockInfo, txs: &[&bchrpc::Transaction]) -> Result<()> {
+    fn add_block_meta(&self, batch: &mut WriteBatch, block_info: &bchrpc::BlockInfo, txs: &[&bchrpc::Transaction]) -> Result<()> {
         let mut total_sats_input = 0;
         let mut total_sats_output = 0;
         for tx in txs {
@@ -361,11 +316,11 @@ impl IndexDb {
             num_txs: txs.len() as u64,
             coinbase_data,
         };
-        batch_block_meta.insert(block_info.hash.clone(), bincode::serialize(&block_meta)?);
+        batch.put_cf(self.cf_block_meta(), block_info.hash.clone(), bincode::serialize(&block_meta)?);
         Ok(())
     }
 
-    fn add_tx_meta(batch_tx_meta: &mut Batch, tx: &bchrpc::Transaction) -> Result<()> {
+    fn add_tx_meta(&self, batch: &mut WriteBatch, tx: &bchrpc::Transaction) -> Result<()> {
         let outpoint = tx.inputs.get(0).ok_or_else(|| anyhow!("No input"))?.outpoint.as_ref().ok_or_else(|| anyhow!("No outpoint"))?;
         let tx_meta = TxMeta {
             block_height: tx.block_height,
@@ -378,7 +333,7 @@ impl IndexDb {
             sats_output: tx.outputs.iter().map(|output| output.value).sum(),
             variant: Self::tx_meta_variant(tx),
         };
-        batch_tx_meta.insert(tx.hash.as_slice(), bincode::serialize(&tx_meta)?);
+        batch.put_cf(self.cf_tx_meta(), tx.hash.as_slice(), bincode::serialize(&tx_meta)?);
         Ok(())
     }
 
@@ -475,13 +430,7 @@ impl IndexDb {
         Ok(tx)
     }
 
-    pub fn add_tx(&self, tx_hash: &[u8], tx: &Tx) -> Result<()> {
-        let db_tx = self.db.open_tree(b"tx")?;
-        db_tx.insert(tx_hash, bincode::serialize(&tx)?)?;
-        Ok(())
-    }
-
-    fn add_addr_tx_meta(batch_addr_tx_meta: &mut Batch, tx: &bchrpc::Transaction) -> Result<()> {
+    fn add_addr_tx_meta(&self, batch: &mut WriteBatch, tx: &bchrpc::Transaction) -> Result<()> {
         let mut address_delta = HashMap::new();
         for input in &tx.inputs {
             let (delta_sats, delta_tokens) = address_delta.entry(input.previous_script.as_slice()).or_default();
@@ -512,13 +461,13 @@ impl IndexDb {
                     delta_sats,
                     delta_tokens,
                 };
-             batch_addr_tx_meta.insert(addr_tx_key.as_bytes(), bincode::serialize(&addr_tx)?);
+                batch.put_cf(self.cf_addr_tx_meta(), addr_tx_key.as_bytes(), bincode::serialize(&addr_tx)?);
             }
         }
         Ok(())
     }
 
-    fn update_utxo_set(batch_utxo_set: &mut Batch, txs: &[&bchrpc::Transaction]) -> Result<()> {
+    fn update_utxo_set(&self, batch: &mut WriteBatch, txs: &[&bchrpc::Transaction]) -> Result<()> {
         for tx in txs {
             let tx_hash: [u8; 32] = tx.hash.as_slice().try_into()?;
             let token_id: Option<[u8; 32]> = match &tx.slp_transaction_info {
@@ -538,7 +487,7 @@ impl IndexDb {
                     block_height: tx.block_height,
                     token_id,
                 };
-                batch_utxo_set.insert(utxo_key.as_bytes(), bincode::serialize(&utxo)?);
+                batch.put_cf(self.cf_utxo_set(), utxo_key.as_bytes(), bincode::serialize(&utxo)?);
             }
         }
         for tx in txs {
@@ -548,14 +497,14 @@ impl IndexDb {
                         tx_hash: outpoint.hash.as_slice().try_into()?,
                         out_idx: U32::new(outpoint.index),
                     };
-                    batch_utxo_set.remove(utxo_key.as_bytes());
+                    batch.delete_cf(self.cf_utxo_set(), utxo_key.as_bytes());
                 }
             }
         }
         Ok(())
     }
 
-    fn update_addr_utxo_set(batch_addr_utxo_set: &mut Batch, txs: &[&bchrpc::Transaction]) -> Result<()> {
+    fn update_addr_utxo_set(&self, batch: &mut WriteBatch, txs: &[&bchrpc::Transaction]) -> Result<()> {
         for tx in txs {
             let tx_hash: [u8; 32] = tx.hash.as_slice().try_into()?;
             for (out_idx, output) in tx.outputs.iter().enumerate() {
@@ -570,7 +519,7 @@ impl IndexDb {
                             out_idx: U32::new(out_idx as u32),
                         },
                     };
-                    batch_addr_utxo_set.insert(key.as_bytes(), b"");
+                    batch.put_cf(self.cf_addr_utxo(), key.as_bytes(), b"");
                 }
             }
         }
@@ -588,7 +537,7 @@ impl IndexDb {
                                 out_idx: U32::new(outpoint.index),
                             },
                         };
-                        batch_addr_utxo_set.remove(key.as_bytes());
+                        batch.delete_cf(self.cf_addr_utxo(), key.as_bytes());
                     }
                 }
             }
@@ -596,7 +545,7 @@ impl IndexDb {
         Ok(())
     }
 
-    fn add_tx_out_spend(db_tx_out_spend: &mut Batch, tx: &bchrpc::Transaction) -> Result<()> {
+    fn add_tx_out_spend(&self, batch: &mut WriteBatch, tx: &bchrpc::Transaction) -> Result<()> {
         let by_tx_hash: [u8; 32] = tx.hash.as_slice().try_into()?;
         for (input_idx, input) in tx.inputs.iter().enumerate() {
             if let Some(outpoint) = &input.outpoint {
@@ -608,13 +557,13 @@ impl IndexDb {
                     by_tx_hash,
                     by_tx_input_idx: U32::new(input_idx as u32),
                 };
-                db_tx_out_spend.insert(utxo_key.as_bytes(), spend.as_bytes());
+                batch.put_cf(self.cf_tx_out_spend(), utxo_key.as_bytes(), spend.as_bytes());
             }
         }
         Ok(())
     }
 
-    fn add_token_meta(db_token_meta: &mut Batch, tx: &bchrpc::Transaction) -> Result<()> {
+    fn add_token_meta(&self, batch: &mut WriteBatch, tx: &bchrpc::Transaction) -> Result<()> {
         use bchrpc::{SlpAction, slp_transaction_info::TxMetadata};
         let slp = match &tx.slp_transaction_info {
             Some(slp) if !slp.token_id.is_empty() => slp,
@@ -656,57 +605,21 @@ impl IndexDb {
             },
             _ => return Ok(()),
         };
-        db_token_meta.insert(slp.token_id.as_slice(), bincode::serialize(&token_meta)?);
+        batch.put_cf(self.cf_token_meta(), slp.token_id.as_slice(), bincode::serialize(&token_meta)?);
         Ok(())
     }
-}
 
-fn db_get<T: DeserializeOwned>(db: &sled::Tree, key: &[u8]) -> Result<T> {
-    let item = db
-        .get(key)?
-        .ok_or_else(|| anyhow!("No entry for {}", String::from_utf8_lossy(key)))?;
-    Ok(bincode::deserialize(&item)?)
-}
-
-fn db_get_option<T: DeserializeOwned>(db: &sled::Tree, key: &[u8]) -> Result<Option<T>> {
-    let item = db.get(key)?;
-    Ok(item
-        .map(|item| bincode::deserialize(&item))
-        .transpose()?)
-}
-
-fn _db_tx_get<T: DeserializeOwned>(
-    db: &TransactionalTree,
-    key: &[u8],
-) -> ConflictableTransactionResult<T, anyhow::Error> {
-    _db_tx_get_option(db, key).and_then(|item| {
-        item.ok_or_else(|| abort_tx(anyhow!("No entry for {}", String::from_utf8_lossy(key))))
-    })
-}
-
-fn _db_tx_get_option<T: DeserializeOwned>(
-    db: &TransactionalTree,
-    key: &[u8],
-) -> ConflictableTransactionResult<Option<T>, anyhow::Error> {
-    let item = db.get(key)?;
-    Ok(item
-        .map(|item| bincode::deserialize(&item).map_err(abort_tx))
-        .transpose()?)
-}
-
-fn abort_tx(err: impl Into<anyhow::Error>) -> ConflictableTransactionError<anyhow::Error> {
-    ConflictableTransactionError::Abort(err.into())
-}
-
-fn tx_error(err: TransactionError<anyhow::Error>) -> anyhow::Error {
-    match err {
-        TransactionError::Abort(err) => {
-            eprintln!("{}", err.to_string().as_str());
-            err
-        }
-        TransactionError::Storage(err) => {
-            eprintln!("Storage error: {}", err);
-            err.into()
-        }
+    fn db_get<T: DeserializeOwned>(&self, cf: &ColumnFamily, key: &[u8]) -> Result<T> {
+        let item = self.db
+            .get_cf(cf, key)?
+            .ok_or_else(|| anyhow!("No entry for {}", String::from_utf8_lossy(key)))?;
+        Ok(bincode::deserialize(&item)?)
+    }
+    
+    fn db_get_option<T: DeserializeOwned>(&self, cf: &ColumnFamily, key: &[u8]) -> Result<Option<T>> {
+        let item = self.db.get_cf(cf, key)?;
+        Ok(item
+            .map(|item| bincode::deserialize(&item))
+            .transpose()?)
     }
 }

@@ -17,11 +17,9 @@ pub struct Server {
 }
 
 impl Server {
-    pub async fn setup(db: Db, indexer: Arc<Indexer>) -> Result<Self> {
+    pub async fn setup(indexer: Arc<Indexer>) -> Result<Self> {
         let satoshi_addr_prefix = "bitcoincash";
-        //let bchd = Bchd::connect(db, satoshi_addr_prefix).await?;
         Ok(Server {
-            //bchd,
             indexer,
             satoshi_addr_prefix,
             tokens_addr_prefix: "simpleledger",
@@ -503,7 +501,7 @@ impl Server {
                                         td { "Block" }
                                         td {
                                             @match &block_meta {
-                                                Some(block_meta) => {
+                                                Some(_) => {
                                                     a href={"/block/" (to_le_hex(&tx.transaction.block_hash))} {
                                                         (render_integer(tx.transaction.block_height as u64))
                                                     }
