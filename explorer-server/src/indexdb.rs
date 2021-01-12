@@ -9,7 +9,7 @@ use sled::{Batch, transaction::{
 }};
 use sled::Tree;
 use zerocopy::{AsBytes, FromBytes, U32, Unaligned};
-use bitcoin_cash::{Address, Hashed};
+use bitcoin_cash::{Address, AddressType, Hash160, Hashed};
 use byteorder::BE;
 
 use crate::{blockchain::{Destination, destination_from_script, is_coinbase}, grpc::bchrpc, primitives::{AddressTx, BlockMeta, SlpAction, TokenMeta, Tx, TxInput, TxMeta, TxMetaVariant, TxOutput, Utxo}};
@@ -92,6 +92,32 @@ impl IndexDb {
         let db_utxo_set = db.open_tree(b"utxo_set")?;
         let db_tx_out_spend = db.open_tree(b"tx_out_spend")?;
         let db_token_meta = db.open_tree(b"token_meta")?;
+        let mut num_txs = HashMap::new();
+        let mut top_txs = 0;
+        println!("Fixing db...");
+        for pair in db_addr_tx_meta.iter() {
+            let (key, value) = pair?;
+            let mut addr_tx: AddressTx = bincode::deserialize(&value)?;
+            addr_tx.delta_sats *= -1;
+            addr_tx.delta_tokens *= -1;
+            db_addr_tx_meta.insert(&key, bincode::serialize(&addr_tx)?)?;
+
+            let mut addr_tx_key = AddrTxKey::default();
+            addr_tx_key.as_bytes_mut().copy_from_slice(&key);
+            let num = num_txs.entry(addr_tx_key.addr_hash).or_default();
+            *num += 1;
+            if *num > top_txs {
+                top_txs = *num;
+                let addr_type = match addr_tx_key.addr_type {
+                    0 => AddressType::P2PKH,
+                    8 => AddressType::P2SH,
+                    _ => continue,
+                };
+                let address = Address::from_hash("bitcoincash", addr_type, Hash160::new(addr_tx_key.addr_hash));
+                println!("new top: {}, {}", address.cash_addr(), num);
+            }
+        }
+        println!("Fixed db.");
         Ok(IndexDb {
             db,
             db_block_height_idx,
@@ -485,16 +511,16 @@ impl IndexDb {
         let mut address_delta = HashMap::new();
         for input in &tx.inputs {
             let (delta_sats, delta_tokens) = address_delta.entry(input.previous_script.as_slice()).or_default();
-            *delta_sats += input.value;
+            *delta_sats -= input.value;
             if let Some(slp) = &input.slp_token {
-                *delta_tokens += slp.amount as i64;
+                *delta_tokens -= slp.amount as i64;
             }
         }
         for output in &tx.outputs {
             let (delta_sats, delta_tokens) = address_delta.entry(output.pubkey_script.as_slice()).or_default();
-            *delta_sats -= output.value;
+            *delta_sats += output.value;
             if let Some(slp) = &output.slp_token {
-                *delta_tokens -= slp.amount as i64;
+                *delta_tokens += slp.amount as i64;
             }
         }
         for (pubkey_script, (delta_sats, delta_tokens)) in address_delta {
