@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc, time::Instant, convert::TryInto};
+use std::{collections::HashMap, convert::TryInto, sync::{Arc, atomic::{AtomicUsize, Ordering}}, time::Instant};
 
 use anyhow::{Result, anyhow, bail};
 use tonic::transport::{Certificate, Channel, ClientTlsConfig, Endpoint};
@@ -99,14 +99,16 @@ impl Indexer {
 
     async fn run_indexer_inner(self: Arc<Self>) -> Result<()> {
         let last_height = self.db.last_block_height().unwrap() as usize;
+        let current_height = Arc::new(AtomicUsize::new(last_height));
         let num_threads = 100;
         let (send_batches, mut receive_batches) = mpsc::channel(num_threads * 2);
         let mut join_handles = Vec::with_capacity(num_threads);
-        for i in 0..num_threads {
+        for _ in 0..num_threads {
             let indexer = Arc::clone(&self);
+            let current_height = Arc::clone(&current_height);
             let send_batches = send_batches.clone();
             let join_handle = tokio::spawn(async move {
-                indexer.index_thread(last_height, num_threads, i, send_batches).await
+                indexer.index_thread(current_height, send_batches).await
             });
             join_handles.push(join_handle);
         }
@@ -142,11 +144,11 @@ impl Indexer {
         Ok(())
     }
 
-    async fn index_thread(&self, last_height: usize, num_threads: usize, thread_idx: usize, mut send_batches: mpsc::Sender<BlockBatches>) -> Result<()> {
+    async fn index_thread(&self, current_height: Arc<AtomicUsize>, mut send_batches: mpsc::Sender<BlockBatches>) -> Result<()> {
         use bchrpc::{GetBlockRequest, get_block_request::HashOrHeight};
-        let mut block_height = last_height + thread_idx;
         let mut bchd = self.bchd.clone();
         loop {
+            let block_height = current_height.fetch_add(1, Ordering::SeqCst);
             let result = bchd.get_block(GetBlockRequest {
                 full_transactions: true,
                 hash_or_height: Some(HashOrHeight::Height(block_height as i32)),
@@ -164,7 +166,6 @@ impl Indexer {
                     return Ok(());
                 }
             }
-            block_height += num_threads;
         }
     }
 }
