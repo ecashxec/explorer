@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc, time::Instant, convert::TryInto};
 use anyhow::{Result, anyhow, bail};
 use tonic::transport::{Certificate, Channel, ClientTlsConfig, Endpoint};
 use tokio::sync::mpsc;
-use crate::{grpc::bchrpc, indexdb::{IndexDb, TxOutSpend}, primitives::{TokenMeta, TxMeta}};
+use crate::{grpc::bchrpc, indexdb::{BlockBatches, IndexDb, TxOutSpend}, primitives::{TokenMeta, TxMeta}};
 use crate::grpc::bchrpc::bchrpc_client::BchrpcClient;
 
 pub struct Indexer {
@@ -100,28 +100,26 @@ impl Indexer {
     async fn run_indexer_inner(self: Arc<Self>) -> Result<()> {
         let last_height = self.db.last_block_height().unwrap() as usize;
         let num_threads = 100;
-        let (send_blocks, mut receive_blocks) = mpsc::channel(num_threads * 2);
+        let (send_batches, mut receive_batches) = mpsc::channel(num_threads * 2);
         let mut join_handles = Vec::with_capacity(num_threads);
         for i in 0..num_threads {
             let indexer = Arc::clone(&self);
-            let send_blocks = send_blocks.clone();
+            let send_batches = send_batches.clone();
             let join_handle = tokio::spawn(async move {
-                indexer.index_thread(last_height, num_threads, i, send_blocks).await
+                indexer.index_thread(last_height, num_threads, i, send_batches).await
             });
             join_handles.push(join_handle);
         }
-        std::mem::drop(send_blocks);
+        std::mem::drop(send_batches);
         let mut current_height = last_height;
         let mut block_shelf = HashMap::new();
         let mut last_update_time = Instant::now();
         let mut last_update_blocks = 0;
-        while let Some(block) = receive_blocks.recv().await {
-            if let Some(info) = &block.info {
-                block_shelf.insert(info.height as usize, block);
-            }
+        while let Some(block_batches) = receive_batches.recv().await {
+            block_shelf.insert(block_batches.block_height as usize, block_batches);
             while block_shelf.contains_key(&current_height) {
-                let block = block_shelf.remove(&current_height).unwrap();
-                self.db.handle_block(&block)?;
+                let block_batches = block_shelf.remove(&current_height).unwrap();
+                self.db.apply_block_batches(&block_batches)?;
                 last_update_blocks += 1;
                 let elapsed = last_update_time.elapsed().as_millis();
                 if elapsed > 10_000 {
@@ -144,7 +142,7 @@ impl Indexer {
         Ok(())
     }
 
-    async fn index_thread(&self, last_height: usize, num_threads: usize, thread_idx: usize, mut send_blocks: mpsc::Sender<bchrpc::Block>) -> Result<()> {
+    async fn index_thread(&self, last_height: usize, num_threads: usize, thread_idx: usize, mut send_batches: mpsc::Sender<BlockBatches>) -> Result<()> {
         use bchrpc::{GetBlockRequest, get_block_request::HashOrHeight};
         let mut block_height = last_height + thread_idx;
         let mut bchd = self.bchd.clone();
@@ -156,7 +154,8 @@ impl Indexer {
             match result {
                 Ok(block) => {
                     if let Some(block) = &block.get_ref().block {
-                        send_blocks.send(block.clone()).await?;
+                        let batches = IndexDb::make_block_batches(block)?;
+                        send_batches.send(batches).await?;
                     }
                 }
                 Err(err) => {

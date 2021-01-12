@@ -3,10 +3,10 @@ use std::convert::TryInto;
 
 use anyhow::{Result, anyhow, bail};
 use serde::de::DeserializeOwned;
-use sled::transaction::{
+use sled::{Batch, transaction::{
     ConflictableTransactionError, ConflictableTransactionResult, TransactionError, Transactional,
     TransactionalTree,
-};
+}};
 use sled::Tree;
 use zerocopy::{AsBytes, FromBytes, U32, Unaligned};
 use bitcoin_cash::{Address, Hashed};
@@ -24,6 +24,19 @@ pub struct IndexDb {
     db_utxo_set: Tree,
     db_tx_out_spend: Tree,
     db_token_meta: Tree,
+}
+
+#[derive(Debug, Clone)]
+pub struct BlockBatches {
+    pub block_height: i32,
+    batch_block_height_idx: Batch,
+    batch_block_meta: Batch,
+    batch_tx_meta: Batch,
+    batch_addr_tx_meta: Batch,
+    batch_addr_utxo_set: Batch,
+    batch_utxo_set: Batch,
+    batch_tx_out_spend: Batch,
+    batch_token_meta: Batch,
 }
 
 #[derive(FromBytes, AsBytes, Unaligned, Debug, Default, Clone, Copy)]
@@ -192,17 +205,7 @@ impl IndexDb {
         Ok(AddressBalance { utxos, balances })
     }
 
-    pub fn handle_block(&self, block: &bchrpc::Block) -> Result<()> {
-        use bchrpc::block::transaction_data::TxidsOrTxs;
-        let block_info = block.info.as_ref().ok_or_else(|| anyhow!("No block info"))?;
-        let txs = block.transaction_data.iter()
-            .map(|tx_data| {
-                match &tx_data.txids_or_txs {
-                    Some(TxidsOrTxs::Transaction(tx)) => Ok(tx),
-                    _ => bail!("Invalid tx in handle_block"),
-                }
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+    pub fn apply_block_batches(&self, block_batches: &BlockBatches) -> Result<()> {
         (
             &self.db_block_meta,
             &self.db_block_height_idx,
@@ -220,19 +223,96 @@ impl IndexDb {
                         db_utxo_set,
                         db_tx_out_spend,
                         db_token_meta)| {
-            self.add_block_height_idx(db_block_height_idx, block_info).map_err(abort_tx)?;
-            self.add_block_meta(db_block_meta, block_info, &txs).map_err(abort_tx)?;
-            self.update_utxo_set(db_utxo_set, &txs).map_err(abort_tx)?;
-            self.update_addr_utxo_set(db_addr_utxo_set, &txs).map_err(abort_tx)?;
-            for tx in txs.iter() {
-                self.add_tx_meta(db_tx_meta, tx).map_err(abort_tx)?;
-                self.add_addr_tx_meta(db_addr_tx_meta, tx).map_err(abort_tx)?;
-                self.add_tx_out_spend(db_tx_out_spend, tx).map_err(abort_tx)?;
-                self.add_token_meta(db_token_meta, tx).map_err(abort_tx)?;
-            }
+            db_block_meta.apply_batch(&block_batches.batch_block_meta).map_err(abort_tx)?;
+            db_block_height_idx.apply_batch(&block_batches.batch_block_height_idx).map_err(abort_tx)?;
+            db_tx_meta.apply_batch(&block_batches.batch_tx_meta).map_err(abort_tx)?;
+            db_addr_tx_meta.apply_batch(&block_batches.batch_addr_tx_meta).map_err(abort_tx)?;
+            db_addr_utxo_set.apply_batch(&block_batches.batch_addr_utxo_set).map_err(abort_tx)?;
+            db_utxo_set.apply_batch(&block_batches.batch_utxo_set).map_err(abort_tx)?;
+            db_tx_out_spend.apply_batch(&block_batches.batch_tx_out_spend).map_err(abort_tx)?;
+            db_token_meta.apply_batch(&block_batches.batch_token_meta).map_err(abort_tx)?;
             Ok(())
-        }).map_err(tx_error)?;
-        Ok(())
+        }).map_err(tx_error)
+    }
+
+    pub fn make_block_batches(block: &bchrpc::Block) -> Result<BlockBatches> {
+        use bchrpc::block::transaction_data::TxidsOrTxs;
+        let block_info = block.info.as_ref().ok_or_else(|| anyhow!("No block info"))?;
+        let txs = block.transaction_data.iter()
+            .map(|tx_data| {
+                match &tx_data.txids_or_txs {
+                    Some(TxidsOrTxs::Transaction(tx)) => Ok(tx),
+                    _ => bail!("Invalid tx in handle_block"),
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(BlockBatches {
+            block_height: block_info.height,
+            batch_block_height_idx: Self::make_batch_block_height_idx(block_info),
+            batch_block_meta: Self::make_batch_block_meta(block_info, &txs)?,
+            batch_tx_meta: Self::make_batch_tx_meta(&txs)?,
+            batch_addr_tx_meta: Self::make_batch_addr_tx_meta(&txs)?,
+            batch_addr_utxo_set: Self::make_batch_addr_utxo_set(&txs)?,
+            batch_utxo_set: Self::make_batch_utxo_set(&txs)?,
+            batch_tx_out_spend: Self::make_batch_tx_out_spend(&txs)?,
+            batch_token_meta: Self::make_batch_token_meta(&txs)?,
+        })
+    }
+
+    fn make_batch_block_height_idx(block_info: &bchrpc::BlockInfo) -> Batch {
+        let mut batch = Batch::default();
+        Self::add_block_height_idx(&mut batch, block_info);
+        batch
+    }
+
+    fn make_batch_block_meta(block_info: &bchrpc::BlockInfo, txs: &[&bchrpc::Transaction]) -> Result<Batch> {
+        let mut batch = Batch::default();
+        Self::add_block_meta(&mut batch, block_info, &txs)?;
+        Ok(batch)
+    }
+
+    fn make_batch_tx_meta(txs: &[&bchrpc::Transaction]) -> Result<Batch> {
+        let mut batch = Batch::default();
+        for tx in txs {
+            Self::add_tx_meta(&mut batch, tx)?;
+        }
+        Ok(batch)
+    }
+
+    fn make_batch_addr_tx_meta(txs: &[&bchrpc::Transaction]) -> Result<Batch> {
+        let mut batch = Batch::default();
+        for tx in txs {
+            Self::add_addr_tx_meta(&mut batch, tx)?;
+        }
+        Ok(batch)
+    }
+
+    fn make_batch_addr_utxo_set(txs: &[&bchrpc::Transaction]) -> Result<Batch> {
+        let mut batch = Batch::default();
+        Self::update_addr_utxo_set(&mut batch, txs)?;
+        Ok(batch)
+    }
+
+    fn make_batch_utxo_set(txs: &[&bchrpc::Transaction]) -> Result<Batch> {
+        let mut batch = Batch::default();
+        Self::update_utxo_set(&mut batch, txs)?;
+        Ok(batch)
+    }
+
+    fn make_batch_tx_out_spend(txs: &[&bchrpc::Transaction]) -> Result<Batch> {
+        let mut batch = Batch::default();
+        for tx in txs {
+            Self::add_tx_out_spend(&mut batch, tx)?;
+        }
+        Ok(batch)
+    }
+
+    fn make_batch_token_meta(txs: &[&bchrpc::Transaction]) -> Result<Batch> {
+        let mut batch = Batch::default();
+        for tx in txs {
+            Self::add_token_meta(&mut batch, tx)?;
+        }
+        Ok(batch)
     }
 
     pub fn flush(&self) -> Result<()> {
@@ -245,13 +325,12 @@ impl IndexDb {
         Ok(())
     }
 
-    fn add_block_height_idx(&self, db_block_height_idx: &TransactionalTree, block_info: &bchrpc::BlockInfo) -> Result<()> {
+    fn add_block_height_idx(batch_block_height_idx: &mut Batch, block_info: &bchrpc::BlockInfo) {
         let block_height = block_info.height as u32;
-        db_block_height_idx.insert(block_height.to_be_bytes().as_ref(), block_info.hash.clone())?;
-        Ok(())
+        batch_block_height_idx.insert(block_height.to_be_bytes().as_ref(), block_info.hash.clone());
     }
 
-    fn add_block_meta(&self, db_block_meta: &TransactionalTree, block_info: &bchrpc::BlockInfo, txs: &[&bchrpc::Transaction]) -> Result<()> {
+    fn add_block_meta(batch_block_meta: &mut Batch, block_info: &bchrpc::BlockInfo, txs: &[&bchrpc::Transaction]) -> Result<()> {
         let mut total_sats_input = 0;
         let mut total_sats_output = 0;
         for tx in txs {
@@ -282,11 +361,11 @@ impl IndexDb {
             num_txs: txs.len() as u64,
             coinbase_data,
         };
-        db_block_meta.insert(block_info.hash.clone(), bincode::serialize(&block_meta)?)?;
+        batch_block_meta.insert(block_info.hash.clone(), bincode::serialize(&block_meta)?);
         Ok(())
     }
 
-    fn add_tx_meta(&self, db_tx_meta: &TransactionalTree, tx: &bchrpc::Transaction) -> Result<()> {
+    fn add_tx_meta(batch_tx_meta: &mut Batch, tx: &bchrpc::Transaction) -> Result<()> {
         let outpoint = tx.inputs.get(0).ok_or_else(|| anyhow!("No input"))?.outpoint.as_ref().ok_or_else(|| anyhow!("No outpoint"))?;
         let tx_meta = TxMeta {
             block_height: tx.block_height,
@@ -299,7 +378,7 @@ impl IndexDb {
             sats_output: tx.outputs.iter().map(|output| output.value).sum(),
             variant: Self::tx_meta_variant(tx),
         };
-        db_tx_meta.insert(tx.hash.as_slice(), bincode::serialize(&tx_meta)?)?;
+        batch_tx_meta.insert(tx.hash.as_slice(), bincode::serialize(&tx_meta)?);
         Ok(())
     }
 
@@ -402,7 +481,7 @@ impl IndexDb {
         Ok(())
     }
 
-    fn add_addr_tx_meta(&self, db_addr_tx_meta: &TransactionalTree, tx: &bchrpc::Transaction) -> Result<()> {
+    fn add_addr_tx_meta(batch_addr_tx_meta: &mut Batch, tx: &bchrpc::Transaction) -> Result<()> {
         let mut address_delta = HashMap::new();
         for input in &tx.inputs {
             let (delta_sats, delta_tokens) = address_delta.entry(input.previous_script.as_slice()).or_default();
@@ -433,13 +512,13 @@ impl IndexDb {
                     delta_sats,
                     delta_tokens,
                 };
-                db_addr_tx_meta.insert(addr_tx_key.as_bytes(), bincode::serialize(&addr_tx)?)?;
+             batch_addr_tx_meta.insert(addr_tx_key.as_bytes(), bincode::serialize(&addr_tx)?);
             }
         }
         Ok(())
     }
 
-    fn update_utxo_set(&self, db_utxo_set: &TransactionalTree, txs: &[&bchrpc::Transaction]) -> Result<()> {
+    fn update_utxo_set(batch_utxo_set: &mut Batch, txs: &[&bchrpc::Transaction]) -> Result<()> {
         for tx in txs {
             let tx_hash: [u8; 32] = tx.hash.as_slice().try_into()?;
             let token_id: Option<[u8; 32]> = match &tx.slp_transaction_info {
@@ -459,7 +538,7 @@ impl IndexDb {
                     block_height: tx.block_height,
                     token_id,
                 };
-                db_utxo_set.insert(utxo_key.as_bytes(), bincode::serialize(&utxo)?)?;
+                batch_utxo_set.insert(utxo_key.as_bytes(), bincode::serialize(&utxo)?);
             }
         }
         for tx in txs {
@@ -469,14 +548,14 @@ impl IndexDb {
                         tx_hash: outpoint.hash.as_slice().try_into()?,
                         out_idx: U32::new(outpoint.index),
                     };
-                    db_utxo_set.remove(utxo_key.as_bytes())?;
+                    batch_utxo_set.remove(utxo_key.as_bytes());
                 }
             }
         }
         Ok(())
     }
 
-    fn update_addr_utxo_set(&self, db_addr_utxo_set: &TransactionalTree, txs: &[&bchrpc::Transaction]) -> Result<()> {
+    fn update_addr_utxo_set(batch_addr_utxo_set: &mut Batch, txs: &[&bchrpc::Transaction]) -> Result<()> {
         for tx in txs {
             let tx_hash: [u8; 32] = tx.hash.as_slice().try_into()?;
             for (out_idx, output) in tx.outputs.iter().enumerate() {
@@ -491,7 +570,7 @@ impl IndexDb {
                             out_idx: U32::new(out_idx as u32),
                         },
                     };
-                    db_addr_utxo_set.insert(key.as_bytes(), b"")?;
+                    batch_addr_utxo_set.insert(key.as_bytes(), b"");
                 }
             }
         }
@@ -509,7 +588,7 @@ impl IndexDb {
                                 out_idx: U32::new(outpoint.index),
                             },
                         };
-                        db_addr_utxo_set.remove(key.as_bytes())?;
+                        batch_addr_utxo_set.remove(key.as_bytes());
                     }
                 }
             }
@@ -517,7 +596,7 @@ impl IndexDb {
         Ok(())
     }
 
-    fn add_tx_out_spend(&self, db_tx_out_spend: &TransactionalTree, tx: &bchrpc::Transaction) -> Result<()> {
+    fn add_tx_out_spend(db_tx_out_spend: &mut Batch, tx: &bchrpc::Transaction) -> Result<()> {
         let by_tx_hash: [u8; 32] = tx.hash.as_slice().try_into()?;
         for (input_idx, input) in tx.inputs.iter().enumerate() {
             if let Some(outpoint) = &input.outpoint {
@@ -529,13 +608,13 @@ impl IndexDb {
                     by_tx_hash,
                     by_tx_input_idx: U32::new(input_idx as u32),
                 };
-                db_tx_out_spend.insert(utxo_key.as_bytes(), spend.as_bytes())?;
+                db_tx_out_spend.insert(utxo_key.as_bytes(), spend.as_bytes());
             }
         }
         Ok(())
     }
 
-    fn add_token_meta(&self, db_token_meta: &TransactionalTree, tx: &bchrpc::Transaction) -> Result<()> {
+    fn add_token_meta(db_token_meta: &mut Batch, tx: &bchrpc::Transaction) -> Result<()> {
         use bchrpc::{SlpAction, slp_transaction_info::TxMetadata};
         let slp = match &tx.slp_transaction_info {
             Some(slp) if !slp.token_id.is_empty() => slp,
@@ -577,7 +656,7 @@ impl IndexDb {
             },
             _ => return Ok(()),
         };
-        db_token_meta.insert(slp.token_id.as_slice(), bincode::serialize(&token_meta)?)?;
+        db_token_meta.insert(slp.token_id.as_slice(), bincode::serialize(&token_meta)?);
         Ok(())
     }
 }
