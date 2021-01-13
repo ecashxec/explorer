@@ -64,17 +64,16 @@ impl Server {
         let second_page_end = first_page_begin.saturating_sub(1);
         let last_page = best_height / page_size;
         let mut pages = BTreeSet::new();
+        pages.insert(0);
+        pages.insert(page);
         let curated_page_offsets = &[
-            1, 2, 10, 20, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000,
+            1, 2, 3, 10, 20, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000,
         ];
         for &page_offset in curated_page_offsets.iter().rev() {
             let preceding_page = page.saturating_sub(page_offset) / page_offset * page_offset;
             if preceding_page > 0 {
                 pages.insert(preceding_page);
             }
-        }
-        if page > 0 {
-            pages.insert(page);
         }
         for &page_offset in curated_page_offsets.iter() {
             let following_page = page.saturating_add(page_offset) / page_offset * page_offset;
@@ -112,8 +111,16 @@ impl Server {
                 .ui.container {
                     p {}
                     .ui.pagination.menu {
-                        a.item href={"?page=0"} { "0" }
-                        @for page in pages {
+                        @for &page in pages.iter() {
+                            @if !pages.contains(&page.saturating_sub(1)) {
+                                @if page.checked_sub(2).map(|page| pages.contains(&page)).unwrap_or(false) {
+                                    a.item href={"?page=" ((page - 2))} {
+                                        ((page - 1))
+                                    }
+                                } @else {
+                                    .item.disabled { "..." }
+                                }
+                            }
                             a.item href={"?page=" (page)} {
                                 (page)
                             }
