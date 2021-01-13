@@ -620,8 +620,15 @@ impl IndexDb {
                     token_document_url: genesis.document_url.clone(),
                     token_document_hash: genesis.document_hash.clone(),
                     decimals: genesis.decimals,
-                    group_id: Some(genesis.group_token_id.as_slice().try_into()
-                        .with_context(|| format!("Invalid group token id: {}, for tx {}", hex::encode(&genesis.group_token_id), to_le_hex(&tx.hash)))?),
+                    group_id: {
+                        let group_id = genesis.group_token_id.as_slice().try_into()
+                            .with_context(|| format!("Invalid group token id: {}, for tx {}", hex::encode(&genesis.group_token_id), to_le_hex(&tx.hash)))
+                            .unwrap_or_else(|err| {
+                                println!("Invalid group_token_id: {:?}", err);
+                                [0; 32]
+                            });
+                        Some(group_id)
+                    },
                 }
             },
             _ => return Ok(()),
