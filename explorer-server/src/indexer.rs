@@ -194,8 +194,14 @@ impl Indexer {
             match result {
                 Ok(block) => {
                     if let Some(block) = &block.get_ref().block {
-                        let batches = self.db.make_block_batches(block)?;
-                        send_batches.send(batches).await.map_err(|_| anyhow!("Send failed"))?;
+                        let batches = match self.db.make_block_batches(block) {
+                            Ok(batches) => batches,
+                            Err(err) => {
+                                println!("{}", err);
+                                return Err(err);
+                            },
+                        };
+                        let _ = send_batches.send(batches).await.map_err(|_| println!("Send failed"));
                     }
                 }
                 Err(err) => {
