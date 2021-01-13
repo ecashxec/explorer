@@ -8,7 +8,7 @@ use zerocopy::{AsBytes, FromBytes, U32, Unaligned};
 use bitcoin_cash::{Address, Hashed};
 use byteorder::BE;
 
-use crate::{blockchain::{Destination, destination_from_script, is_coinbase, to_le_hex}, grpc::bchrpc, primitives::{AddressTx, BlockMeta, SlpAction, TokenMeta, TxMeta, TxMetaVariant, Utxo}};
+use crate::{blockchain::{Destination, destination_from_script, from_le_hex, is_coinbase, to_le_hex}, grpc::bchrpc, primitives::{AddressTx, BlockMeta, SlpAction, TokenMeta, TxMeta, TxMetaVariant, Utxo}};
 
 pub struct IndexDb {
     db: rocksdb::DB,
@@ -277,6 +277,23 @@ impl IndexDb {
             iter_addr_utxo.next();
         }
         Ok(AddressBalance { utxos, balances })
+    }
+
+    pub fn search(&self, query: &str) -> Result<Option<String>> {
+        match Address::from_cash_addr(query) {
+            Ok(address) => return Ok(Some(format!("/address/{}", address.cash_addr()))),
+            _ => {},
+        }
+        let bytes = from_le_hex(query)?;
+        match self.tx_meta(&bytes)? {
+            Some(_) => return Ok(Some(format!("/tx/{}", query))),
+            _ => {}
+        }
+        match self.block_meta(&bytes) {
+            Ok(_) => return Ok(Some(format!("/block/{}", query))),
+            _ => {}
+        }
+        Ok(None)
     }
 
     pub fn apply_block_batches(&self, block_batches: BlockBatches) -> Result<()> {
