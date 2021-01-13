@@ -240,7 +240,7 @@ impl IndexDb {
         Ok(spends)
     }
 
-    pub fn address(&self, address: &Address<'_>, mut skip: usize, take: usize) -> Result<Vec<([u8; 32], AddressTx, TxMeta)>> {
+    pub fn address(&self, address: &Address<'_>, skip: usize, take: usize) -> Result<Vec<([u8; 32], AddressTx, TxMeta)>> {
         let addr_prefix = AddrKeyPrefix {
             addr_type: address.addr_type() as u8,
             addr_hash: address.hash().as_slice().try_into().unwrap(),
@@ -249,7 +249,12 @@ impl IndexDb {
 
         let mut iter_mempool_addr_tx = self.db.raw_iterator_cf(self.cf_mempool_addr_tx_meta());
         iter_mempool_addr_tx.seek(addr_prefix.as_bytes());
-        (0..skip).for_each(|_| iter_mempool_addr_tx.next());
+        for _ in 0..skip {
+            if !iter_mempool_addr_tx.valid() {
+                break;
+            }
+            iter_mempool_addr_tx.next();
+        }
         let mut n = 0;
         while let (Some(key), Some(value)) = (iter_mempool_addr_tx.key(), iter_mempool_addr_tx.value()) {
             if n >= take {
@@ -267,13 +272,17 @@ impl IndexDb {
             n += 1;
         }
 
-        skip = skip.saturating_sub(n);
         let mut iter_addr_tx = self.db.raw_iterator_cf(self.cf_addr_tx_meta());
         let mut seek_key = addr_prefix.as_bytes().to_vec();
         inc_bytes(&mut seek_key);
         iter_addr_tx.seek(seek_key);
         iter_addr_tx.prev();
-        (0..skip).for_each(|_| iter_addr_tx.prev());
+        for _ in n..skip {
+            if !iter_addr_tx.valid() {
+                break;
+            }
+            iter_addr_tx.next();
+        }
         while let (Some(key), Some(value)) = (iter_addr_tx.key(), iter_addr_tx.value()) {
             if n >= take {
                 break;
