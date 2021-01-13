@@ -107,7 +107,7 @@ webix.ready(function(){
         adjust: true,
         template: function (row) {
           if (row.timestamp == 0) {
-            return '<div class="ui green horizontal label">Mempool</div>';
+            return '<div class="ui gray horizontal label">Mempool</div>';
           }
           return moment(row.timestamp).fromNow();
         },
@@ -118,7 +118,7 @@ webix.ready(function(){
         width: 160,
         template: function (row) {
           if (row.timestamp == 0) {
-            return '<div class="ui green horizontal label">Mempool</div>';
+            return '<div class="ui gray horizontal label">Mempool</div>';
           }
           return moment(row.timestamp).format('ll, LTS');
         },
@@ -138,7 +138,7 @@ webix.ready(function(){
         width: 95,
         template: function (row) {
           if (row.timestamp == 0) {
-            return '<div class="ui green horizontal label">Mempool</div>';
+            return '<div class="ui gray horizontal label">Mempool</div>';
           }
           return '<a href="/block-height/' + row.blockHeight + '">' + renderInteger(row.blockHeight) + '</a>';
         },
