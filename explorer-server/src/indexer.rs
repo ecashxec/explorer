@@ -2,7 +2,7 @@ use std::{collections::HashMap, convert::TryInto, sync::{Arc, atomic::{AtomicUsi
 
 use anyhow::{Result, anyhow, bail};
 use tonic::transport::{Certificate, Channel, ClientTlsConfig, Endpoint};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 use crate::{grpc::bchrpc, indexdb::{BlockBatches, IndexDb, TxOutSpend}, primitives::{TokenMeta, TxMeta}};
 use crate::grpc::bchrpc::bchrpc_client::BchrpcClient;
 
@@ -33,8 +33,10 @@ impl tokio_rustls::rustls::ServerCertVerifier for NopCertVerifier {
     }
 }
 
-const ALPN_H2: &str = "h2";
 impl Indexer {
+    const ALPN_H2: &'static str = "h2";
+    const MAX_FETCH_AHEAD: usize = 1000;
+
     pub async fn connect(db: IndexDb) -> Result<Self> {
         use std::fs;
         use std::io::Read;
@@ -42,7 +44,7 @@ impl Indexer {
         let mut cert = Vec::new();
         cert_file.read_to_end(&mut cert)?;
         let mut config =  tokio_rustls::rustls::ClientConfig::new();
-        config.set_protocols(&[Vec::from(&ALPN_H2[..])]);
+        config.set_protocols(&[Vec::from(&Self::ALPN_H2[..])]);
         let mut dangerous_config =  tokio_rustls::rustls::DangerousClientConfig {
             cfg: &mut config,
         };
@@ -50,7 +52,7 @@ impl Indexer {
         let tls_config = ClientTlsConfig::new()
             .ca_certificate(Certificate::from_pem(&cert))
             .rustls_client_config(config);
-        let endpoint = Endpoint::from_static("http://localhost:8445").tls_config(tls_config)?;
+        let endpoint = Endpoint::from_static("https://api2.be.cash:8445").tls_config(tls_config)?;
         let bchd = BchrpcClient::connect(endpoint).await?;
         Ok(Indexer { bchd, db })
     }
@@ -122,16 +124,18 @@ impl Indexer {
 
     async fn run_indexer_inner(self: Arc<Self>) -> Result<()> {
         let last_height = self.db.last_block_height().unwrap() as usize;
-        let current_height = Arc::new(AtomicUsize::new(last_height));
-        let num_threads = 500;
+        let current_height_atomic = Arc::new(AtomicUsize::new(last_height));
+        let num_threads = 50;
         let (send_batches, mut receive_batches) = mpsc::channel(num_threads * 2);
+        let (watch_height_sender, watch_height_receiver) = watch::channel(last_height);
         let mut join_handles = Vec::with_capacity(num_threads);
         for _ in 0..num_threads {
             let indexer = Arc::clone(&self);
-            let current_height = Arc::clone(&current_height);
+            let current_height_atomic = Arc::clone(&current_height_atomic);
             let send_batches = send_batches.clone();
+            let watch_height_receiver = watch_height_receiver.clone();
             let join_handle = tokio::spawn(async move {
-                indexer.index_thread(current_height, send_batches).await
+                indexer.index_thread(current_height_atomic, send_batches, watch_height_receiver).await
             });
             join_handles.push(join_handle);
         }
@@ -160,6 +164,7 @@ impl Indexer {
                     last_update_time = Instant::now();
                 }
                 current_height += 1;
+                watch_height_sender.broadcast(current_height)?;
             }
         }
         for handle in join_handles {
@@ -168,11 +173,20 @@ impl Indexer {
         Ok(())
     }
 
-    async fn index_thread(&self, current_height: Arc<AtomicUsize>, mut send_batches: mpsc::Sender<BlockBatches>) -> Result<()> {
+    async fn index_thread(
+        &self,
+        current_height_atomic: Arc<AtomicUsize>,
+        mut send_batches: mpsc::Sender<BlockBatches>,
+        mut watch_height_receiver: watch::Receiver<usize>,
+    ) -> Result<()> {
         use bchrpc::{GetBlockRequest, get_block_request::HashOrHeight};
         let mut bchd = self.bchd.clone();
         loop {
-            let block_height = current_height.fetch_add(1, Ordering::SeqCst);
+            let block_height = current_height_atomic.fetch_add(1, Ordering::SeqCst);
+            while *watch_height_receiver.borrow() + Self::MAX_FETCH_AHEAD < block_height {
+                println!("Waiting for BCHD to catch up, fetching block {} but processed only up to {}", block_height, *watch_height_receiver.borrow());
+                watch_height_receiver.recv().await;
+            }
             let result = bchd.get_block(GetBlockRequest {
                 full_transactions: true,
                 hash_or_height: Some(HashOrHeight::Height(block_height as i32)),
