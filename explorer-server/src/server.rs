@@ -1,16 +1,15 @@
 use anyhow::{Result, anyhow, bail};
 use bitcoin_cash::{Address, Script};
 use maud::{DOCTYPE, Markup, PreEscaped, html};
-use warp::{Reply, http::Uri};
+use warp::Reply;
 use serde::Serialize;
 use chrono::{Utc, TimeZone};
 use chrono_humanize::HumanTime;
-use std::{borrow::Cow, collections::{HashMap, hash_map::Entry}, convert::{TryInto, TryFrom}, sync::Arc};
+use std::{borrow::Cow, collections::{HashMap, hash_map::Entry}, convert::TryInto, sync::Arc};
 
-use crate::{blockchain::{BlockHeader, Destination, destination_from_script, from_le_hex, to_legacy_address, to_le_hex}, db::Db, formatting::{render_amount, render_byte_size, render_difficulty, render_integer, render_sats}, grpc::bchrpc, indexdb::{AddressBalance, TxOutSpend}, indexer::Indexer, primitives::{SlpAction, TokenMeta, TxMeta, TxMetaVariant}};
+use crate::{blockchain::{BlockHeader, Destination, destination_from_script, from_le_hex, to_legacy_address, to_le_hex}, formatting::{render_amount, render_byte_size, render_difficulty, render_integer, render_sats}, grpc::bchrpc, indexdb::{AddressBalance, TxOutSpend}, indexer::Indexer, primitives::{SlpAction, TokenMeta, TxMeta, TxMetaVariant}};
 
 pub struct Server {
-    //bchd: Bchd,
     indexer: Arc<Indexer>,
     satoshi_addr_prefix: &'static str,
     tokens_addr_prefix: &'static str,

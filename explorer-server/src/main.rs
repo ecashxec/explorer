@@ -8,7 +8,6 @@ use warp::{Filter, Rejection, Reply, hyper::StatusCode};
 use serde::Serialize;
 
 mod blockchain;
-mod db;
 mod formatting;
 mod grpc;
 mod server;
