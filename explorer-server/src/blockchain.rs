@@ -22,10 +22,6 @@ impl BlockHeader {
     pub fn as_slice(&self) -> &[u8] {
         unsafe { plain::as_bytes(self) }
     }
-
-    pub fn as_mut_slice(&mut self) -> &mut [u8] {
-        unsafe { plain::as_mut_bytes(self) }
-    }
 }
 
 pub fn to_le_hex(slice: &[u8]) -> String {

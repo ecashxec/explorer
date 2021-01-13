@@ -71,41 +71,6 @@ pub struct Token {
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct Tx {
-    pub version: i32,
-    pub inputs: Vec<TxInput>,
-    pub outputs: Vec<TxOutput>,
-    pub lock_time: u32,
-
-    pub size: u64,
-    pub timestamp: i64,
-    pub block_height: i32,
-    pub block_hash: [u8; 32],
-}
-
-#[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct TxInput {
-    pub outpoint_tx_hash: [u8; 32],
-    pub outpoint_out_idx: u32,
-    pub signature_script: Vec<u8>,
-    pub sequence: u32,
-    pub sats_value: i64,
-    pub previous_script: Vec<u8>,
-
-    pub token_value: u64,
-    pub is_mint_baton: bool,
-}
-
-#[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct TxOutput {
-    pub sats_value: i64,
-    pub pubkey_script: Vec<u8>,
-
-    pub token_value: u64,
-    pub is_mint_baton: bool,
-}
-
-#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct AddressTx {
     pub timestamp: i64,
     pub block_height: i32,

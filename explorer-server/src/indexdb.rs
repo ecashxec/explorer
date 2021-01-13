@@ -8,7 +8,7 @@ use zerocopy::{AsBytes, FromBytes, U32, Unaligned};
 use bitcoin_cash::{Address, Hashed};
 use byteorder::BE;
 
-use crate::{blockchain::{Destination, destination_from_script, is_coinbase, to_le_hex}, grpc::bchrpc, primitives::{AddressTx, BlockMeta, SlpAction, TokenMeta, Tx, TxInput, TxMeta, TxMetaVariant, TxOutput, Utxo}};
+use crate::{blockchain::{Destination, destination_from_script, is_coinbase, to_le_hex}, grpc::bchrpc, primitives::{AddressTx, BlockMeta, SlpAction, TokenMeta, TxMeta, TxMetaVariant, Utxo}};
 
 pub struct IndexDb {
     db: rocksdb::DB,
@@ -422,49 +422,6 @@ impl IndexDb {
             }
             None => TxMetaVariant::SatsOnly
         }
-    }
-
-    pub fn extract_tx(tx: &bchrpc::Transaction) -> Result<Tx> {
-        let inputs = tx.inputs.iter()
-            .map(|input| -> Result<_> {
-                let outpoint = input.outpoint.as_ref().ok_or_else(|| anyhow!("No outpoint"))?;
-                let slp_token = input.slp_token.as_ref();
-                Ok(TxInput {
-                    outpoint_tx_hash: outpoint.hash.as_slice().try_into()?,
-                    outpoint_out_idx: outpoint.index,
-                    signature_script: input.signature_script.clone(),
-                    sequence: input.sequence,
-                    sats_value: input.value,
-                    previous_script: input.previous_script.clone(),
-                
-                    token_value: slp_token.map(|slp| slp.amount).unwrap_or(0),
-                    is_mint_baton: slp_token.map(|slp| slp.is_mint_baton).unwrap_or(false),
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let outputs = tx.outputs.iter()
-            .map(|output| -> Result<_> {
-                let slp_token = output.slp_token.as_ref();
-                Ok(TxOutput {
-                    sats_value: output.value,
-                    pubkey_script: output.pubkey_script.clone(),
-                    token_value: slp_token.map(|slp| slp.amount).unwrap_or(0),
-                    is_mint_baton: slp_token.map(|slp| slp.is_mint_baton).unwrap_or(false),
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        let tx = Tx {
-            version: tx.version,
-            inputs,
-            outputs,
-            lock_time: tx.lock_time,
-        
-            size: tx.size as u64,
-            timestamp: tx.timestamp,
-            block_height: tx.block_height,
-            block_hash: tx.block_hash.as_slice().try_into()?,
-        };
-        Ok(tx)
     }
 
     fn add_addr_tx_meta(&self, batch: &mut WriteBatch, tx: &bchrpc::Transaction) -> Result<()> {
