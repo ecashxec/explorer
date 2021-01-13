@@ -180,11 +180,15 @@
   padding: 20px;
 }
 
+.bottom-pagination {
+  text-align: center;
+}
+
 .ui.pagination.menu .item {
   min-width: 0 !important;
 }
 
 .ui.pagination.menu .item.disabled {
-  padding-left: 0.55em;
-  padding-right: 0.55em;
+  padding-left: 0.35em;
+  padding-right: 0.35em;
 }

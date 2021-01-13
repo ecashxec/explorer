@@ -108,7 +108,7 @@ impl Server {
                     #blocks-table {}
                 }
 
-                .ui.container {
+                .bottom-pagination {
                     p {}
                     .ui.pagination.menu {
                         @for &page in pages.iter() {
