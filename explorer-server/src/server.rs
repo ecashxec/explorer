@@ -55,6 +55,7 @@ impl Server {
         let mut pages = BTreeSet::new();
         pages.insert(0);
         pages.insert(page);
+        pages.insert(last_page);
         for &page_offset in curated_page_offsets.iter().rev() {
             let preceding_page = page.saturating_sub(page_offset) / page_offset * page_offset;
             if preceding_page > 0 {
