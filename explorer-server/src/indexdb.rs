@@ -281,7 +281,7 @@ impl IndexDb {
             if !iter_addr_tx.valid() {
                 break;
             }
-            iter_addr_tx.next();
+            iter_addr_tx.prev();
         }
         while let (Some(key), Some(value)) = (iter_addr_tx.key(), iter_addr_tx.value()) {
             if n >= take {
