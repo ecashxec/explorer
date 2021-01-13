@@ -170,7 +170,15 @@ impl Indexer {
         for handle in join_handles {
             handle.await??;
         }
-        self.handle_new_blocks().await;
+        self.update_mempool().await?;
+        tokio::spawn({
+            let indexer = Arc::clone(&self);
+            async move { indexer.monitor_new_blocks().await }
+        });
+        tokio::spawn({
+            let indexer = Arc::clone(&self);
+            async move { indexer.monitor_mempool().await }
+        });
         Ok(())
     }
 
@@ -217,9 +225,10 @@ impl Indexer {
         }
     }
 
-    async fn handle_new_blocks(&self) {
+    async fn monitor_new_blocks(&self) {
+        println!("Monitoring for new blocks");
         loop {
-            match self.try_handle_new_blocks().await {
+            match self.try_monitor_new_blocks().await {
                 Ok(()) => println!("Block stream ended, restarting."),
                 Err(err) => {
                     println!("Monitor blocks error: {:?}", err);
@@ -229,7 +238,7 @@ impl Indexer {
         }
     }
 
-    async fn try_handle_new_blocks(&self) -> Result<()> {
+    async fn try_monitor_new_blocks(&self) -> Result<()> {
         use bchrpc::block_notification::Block;
         use bchrpc::SubscribeBlocksRequest;
         let mut bchd = self.bchd.clone();
@@ -245,8 +254,65 @@ impl Indexer {
                 println!("New block: {}", to_le_hex(&block.info.as_ref().unwrap().hash));
                 let batches = self.db.make_block_batches(&block)?;
                 self.db.apply_block_batches(batches)?;
+                self.update_mempool().await?;
             }
         }
+        Ok(())
+    }
+
+    pub async fn monitor_mempool(&self) {
+        loop {
+            match self.try_monitor_mempool().await {
+                Ok(()) => println!("Block stream ended, restarting."),
+                Err(err) => {
+                    println!("Monitor post office error: {:?}", err);
+                    println!("Restarting monitor_post_office");
+                }
+            }
+        }
+    }
+
+    async fn try_monitor_mempool(&self) -> Result<()> {
+        use bchrpc::{SubscribeTransactionsRequest, TransactionFilter, transaction_notification::Transaction};
+        let mut bchd = self.bchd.clone();
+        let mut tx_stream = bchd
+            .subscribe_transactions(SubscribeTransactionsRequest {
+                subscribe: Some(TransactionFilter {
+                    all_transactions: true,
+                    ..TransactionFilter::default()
+                }),
+                unsubscribe: None,
+                include_mempool: true,
+                include_in_block: false,
+                serialize_tx: false,
+            })
+            .await?;
+        while let Some(tx) = tx_stream.get_mut().message().await? {
+            if let Some(Transaction::UnconfirmedTransaction(tx)) = tx.transaction {
+                let tx = tx.transaction;
+                if let Some(tx) = &tx {
+                    let batch = self.db.make_mempool_tx_batches(&[&tx])?;
+                    self.db.apply_batch(batch)?;
+                    println!("Added tx {} to the mempool.", to_le_hex(&tx.hash));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    async fn update_mempool(&self) -> Result<()> {
+        use bchrpc::GetMempoolRequest;
+        println!("Updating mempool...");
+        let mut bchd = self.bchd.clone();
+        let mempool = bchd.get_mempool(GetMempoolRequest {
+            full_transactions: true,
+        }).await?;
+        let mempool = mempool.get_ref();
+        let txs = self.db.make_mempool_txs(&mempool.transaction_data)?;
+        let batch = self.db.make_mempool_tx_batches(&txs)?;
+        self.db.clear_mempool()?;
+        self.db.apply_batch(batch)?;
+        println!("Added {} txs to the mempool", txs.len());
         Ok(())
     }
 }

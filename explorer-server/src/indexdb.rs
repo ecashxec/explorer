@@ -78,6 +78,16 @@ impl IndexDb {
         Self::ensure_cf(&mut db, "utxo_set")?;
         Self::ensure_cf(&mut db, "tx_out_spend")?;
         Self::ensure_cf(&mut db, "token_meta")?;
+
+        Self::ensure_cf(&mut db, "mempool_tx_meta")?;
+        Self::ensure_cf(&mut db, "mempool_addr_tx_meta")?;
+        Self::ensure_cf(&mut db, "mempool_addr_utxo_add")?;
+        Self::ensure_cf(&mut db, "mempool_addr_utxo_remove")?;
+        Self::ensure_cf(&mut db, "mempool_utxo_set_add")?;
+        Self::ensure_cf(&mut db, "mempool_utxo_set_remove")?;
+        Self::ensure_cf(&mut db, "mempool_tx_out_spend")?;
+        Self::ensure_cf(&mut db, "mempool_token_meta")?;
+
         Ok(IndexDb {
             db,
         })
@@ -113,6 +123,31 @@ impl IndexDb {
     }
     fn cf_token_meta(&self) -> &ColumnFamily {
         self.db.cf_handle("token_meta").expect("No such column family")
+    }
+
+    fn cf_mempool_tx_meta(&self) -> &ColumnFamily {
+        self.db.cf_handle("mempool_tx_meta").expect("No such column family")
+    }
+    fn cf_mempool_addr_tx_meta(&self) -> &ColumnFamily {
+        self.db.cf_handle("mempool_addr_tx_meta").expect("No such column family")
+    }
+    fn cf_mempool_addr_utxo_add(&self) -> &ColumnFamily {
+        self.db.cf_handle("mempool_addr_utxo_add").expect("No such column family")
+    }
+    fn cf_mempool_addr_utxo_remove(&self) -> &ColumnFamily {
+        self.db.cf_handle("mempool_addr_utxo_remove").expect("No such column family")
+    }
+    fn cf_mempool_utxo_set_add(&self) -> &ColumnFamily {
+        self.db.cf_handle("mempool_utxo_set_add").expect("No such column family")
+    }
+    fn cf_mempool_utxo_set_remove(&self) -> &ColumnFamily {
+        self.db.cf_handle("mempool_utxo_set_remove").expect("No such column family")
+    }
+    fn cf_mempool_tx_out_spend(&self) -> &ColumnFamily {
+        self.db.cf_handle("mempool_tx_out_spend").expect("No such column family")
+    }
+    fn cf_mempool_token_meta(&self) -> &ColumnFamily {
+        self.db.cf_handle("mempool_token_meta").expect("No such column family")
     }
 
     pub fn last_block_height(&self) -> Result<u32> {
@@ -300,6 +335,27 @@ impl IndexDb {
         Ok(self.db.write(block_batches.batch)?)
     }
 
+    pub fn apply_batch(&self, batch: WriteBatch) -> Result<()> {
+        Ok(self.db.write(batch)?)
+    }
+
+    pub fn clear_mempool(&self) -> Result<()> {
+        self.clear_cf(self.cf_mempool_tx_meta())?;
+        self.clear_cf(self.cf_mempool_addr_tx_meta())?;
+        self.clear_cf(self.cf_mempool_addr_utxo_add())?;
+        self.clear_cf(self.cf_mempool_addr_utxo_remove())?;
+        self.clear_cf(self.cf_mempool_utxo_set_add())?;
+        self.clear_cf(self.cf_mempool_utxo_set_remove())?;
+        self.clear_cf(self.cf_mempool_tx_out_spend())?;
+        self.clear_cf(self.cf_mempool_token_meta())?;
+        Ok(())
+    }
+
+    fn clear_cf(&self, cf: &ColumnFamily) -> Result<()> {
+        self.db.delete_range_cf(cf, b"".as_ref(), &[0xff; 512])?;
+        Ok(())
+    }
+
     pub fn make_block_batches(&self, block: &bchrpc::Block) -> Result<BlockBatches> {
         use bchrpc::block::transaction_data::TxidsOrTxs;
         let block_info = block.info.as_ref().ok_or_else(|| anyhow!("No block info"))?;
@@ -315,18 +371,45 @@ impl IndexDb {
         let mut batch = WriteBatch::default();
         self.add_block_height_idx(&mut batch, block_info);
         self.add_block_meta(&mut batch, block_info, &txs).with_context(|| "add_block_meta")?;
-        self.update_addr_utxo_set(&mut batch, &txs).with_context(|| "update_addr_utxo_set")?;
-        self.update_utxo_set(&mut batch, &txs).with_context(|| "update_utxo_set")?;
+        self.update_addr_utxo_set(&mut batch, &txs, false).with_context(|| "update_addr_utxo_set")?;
+        self.update_utxo_set(&mut batch, &txs, false).with_context(|| "update_utxo_set")?;
         for tx in txs {
-            self.add_tx_meta(&mut batch, tx).with_context(|| "add_tx_meta")?;
-            self.add_addr_tx_meta(&mut batch, tx).with_context(|| "add_addr_tx_meta")?;
-            self.add_tx_out_spend(&mut batch, tx).with_context(|| "add_tx_out_spend")?;
-            self.add_token_meta(&mut batch, tx).with_context(|| "add_token_meta")?;
+            self.add_tx_meta(&mut batch, tx, false).with_context(|| "add_tx_meta")?;
+            self.add_addr_tx_meta(&mut batch, tx, false).with_context(|| "add_addr_tx_meta")?;
+            self.add_tx_out_spend(&mut batch, tx, false).with_context(|| "add_tx_out_spend")?;
+            self.add_token_meta(&mut batch, tx, false).with_context(|| "add_token_meta")?;
         }
         Ok(BlockBatches {
             block_height: block_info.height,
             batch,
         })
+    }
+
+    pub fn make_mempool_tx_batches(&self, txs: &[&bchrpc::Transaction]) -> Result<WriteBatch> {
+        let mut batch = WriteBatch::default();
+        self.update_addr_utxo_set(&mut batch, &txs, true).with_context(|| "update_addr_utxo_set")?;
+        self.update_utxo_set(&mut batch, &txs, true).with_context(|| "update_utxo_set")?;
+        for tx in txs {
+            self.add_tx_meta(&mut batch, tx, true).with_context(|| "add_tx_meta")?;
+            self.add_addr_tx_meta(&mut batch, tx, true).with_context(|| "add_addr_tx_meta")?;
+            self.add_tx_out_spend(&mut batch, tx, true).with_context(|| "add_tx_out_spend")?;
+            self.add_token_meta(&mut batch, tx, true).with_context(|| "add_token_meta")?;
+        }
+        Ok(batch)
+    }
+
+    pub fn make_mempool_txs<'a>(&self, txs: &'a [bchrpc::get_mempool_response::TransactionData]) -> Result<Vec<&'a bchrpc::Transaction>> {
+        use bchrpc::get_mempool_response::transaction_data::TxidsOrTxs;
+        let txs = txs.iter()
+            .map(|tx_data| {
+                match &tx_data.txids_or_txs {
+                    Some(TxidsOrTxs::Transaction(tx)) => Ok(tx),
+                    _ => bail!("Invalid tx in handle_block"),
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .with_context(|| "Collecting transactions")?;
+        Ok(txs)
     }
 
     pub fn flush(&self) -> Result<()> {
@@ -374,7 +457,8 @@ impl IndexDb {
         Ok(())
     }
 
-    fn add_tx_meta(&self, batch: &mut WriteBatch, tx: &bchrpc::Transaction) -> Result<()> {
+    fn add_tx_meta(&self, batch: &mut WriteBatch, tx: &bchrpc::Transaction, is_mempool: bool) -> Result<()> {
+        let cf = if is_mempool { self.cf_mempool_tx_meta() } else { self.cf_tx_meta() };
         let outpoint = tx.inputs.get(0).ok_or_else(|| anyhow!("No input"))?.outpoint.as_ref().ok_or_else(|| anyhow!("No outpoint"))?;
         let tx_meta = TxMeta {
             block_height: tx.block_height,
@@ -387,7 +471,7 @@ impl IndexDb {
             sats_output: tx.outputs.iter().map(|output| output.value).sum(),
             variant: Self::tx_meta_variant(tx),
         };
-        batch.put_cf(self.cf_tx_meta(), tx.hash.as_slice(), bincode::serialize(&tx_meta)?);
+        batch.put_cf(cf, tx.hash.as_slice(), bincode::serialize(&tx_meta)?);
         Ok(())
     }
 
@@ -441,7 +525,8 @@ impl IndexDb {
         }
     }
 
-    fn add_addr_tx_meta(&self, batch: &mut WriteBatch, tx: &bchrpc::Transaction) -> Result<()> {
+    fn add_addr_tx_meta(&self, batch: &mut WriteBatch, tx: &bchrpc::Transaction, is_mempool: bool) -> Result<()> {
+        let cf = if is_mempool { self.cf_mempool_addr_tx_meta() } else { self.cf_addr_tx_meta() };
         let mut address_delta = HashMap::new();
         for input in &tx.inputs {
             let (delta_sats, delta_tokens) = address_delta.entry(input.previous_script.as_slice()).or_default();
@@ -472,13 +557,14 @@ impl IndexDb {
                     delta_sats,
                     delta_tokens,
                 };
-                batch.put_cf(self.cf_addr_tx_meta(), addr_tx_key.as_bytes(), bincode::serialize(&addr_tx)?);
+                batch.put_cf(cf, addr_tx_key.as_bytes(), bincode::serialize(&addr_tx)?);
             }
         }
         Ok(())
     }
 
-    fn update_utxo_set(&self, batch: &mut WriteBatch, txs: &[&bchrpc::Transaction]) -> Result<()> {
+    fn update_utxo_set(&self, batch: &mut WriteBatch, txs: &[&bchrpc::Transaction], is_mempool: bool) -> Result<()> {
+        let cf_add = if is_mempool { self.cf_mempool_utxo_set_add() } else { self.cf_utxo_set() };
         for tx in txs {
             let tx_hash: [u8; 32] = tx.hash.as_slice().try_into()?;
             let token_id: Option<[u8; 32]> = match &tx.slp_transaction_info {
@@ -498,7 +584,7 @@ impl IndexDb {
                     block_height: tx.block_height,
                     token_id,
                 };
-                batch.put_cf(self.cf_utxo_set(), utxo_key.as_bytes(), bincode::serialize(&utxo)?);
+                batch.put_cf(cf_add, utxo_key.as_bytes(), bincode::serialize(&utxo)?);
             }
         }
         for tx in txs {
@@ -508,14 +594,19 @@ impl IndexDb {
                         tx_hash: outpoint.hash.as_slice().try_into()?,
                         out_idx: U32::new(outpoint.index),
                     };
-                    batch.delete_cf(self.cf_utxo_set(), utxo_key.as_bytes());
+                    if is_mempool {
+                        batch.put_cf(self.cf_mempool_utxo_set_remove(), utxo_key.as_bytes(), b"");
+                    } else {
+                        batch.delete_cf(self.cf_utxo_set(), utxo_key.as_bytes());
+                    };
                 }
             }
         }
         Ok(())
     }
 
-    fn update_addr_utxo_set(&self, batch: &mut WriteBatch, txs: &[&bchrpc::Transaction]) -> Result<()> {
+    fn update_addr_utxo_set(&self, batch: &mut WriteBatch, txs: &[&bchrpc::Transaction], is_mempool: bool) -> Result<()> {
+        let cf_add = if is_mempool { self.cf_mempool_addr_utxo_add() } else { self.cf_addr_utxo() };
         for tx in txs {
             let tx_hash: [u8; 32] = tx.hash.as_slice().try_into()?;
             for (out_idx, output) in tx.outputs.iter().enumerate() {
@@ -530,7 +621,7 @@ impl IndexDb {
                             out_idx: U32::new(out_idx as u32),
                         },
                     };
-                    batch.put_cf(self.cf_addr_utxo(), key.as_bytes(), b"");
+                    batch.put_cf(cf_add, key.as_bytes(), b"");
                 }
             }
         }
@@ -548,7 +639,11 @@ impl IndexDb {
                                 out_idx: U32::new(outpoint.index),
                             },
                         };
-                        batch.delete_cf(self.cf_addr_utxo(), key.as_bytes());
+                        if is_mempool {
+                            batch.put_cf(self.cf_mempool_addr_utxo_remove(), key.as_bytes(), b"");
+                        } else {
+                            batch.delete_cf(self.cf_addr_utxo(), key.as_bytes());
+                        };
                     }
                 }
             }
@@ -556,7 +651,8 @@ impl IndexDb {
         Ok(())
     }
 
-    fn add_tx_out_spend(&self, batch: &mut WriteBatch, tx: &bchrpc::Transaction) -> Result<()> {
+    fn add_tx_out_spend(&self, batch: &mut WriteBatch, tx: &bchrpc::Transaction, is_mempool: bool) -> Result<()> {
+        let cf = if is_mempool { self.cf_mempool_tx_out_spend() } else { self.cf_tx_out_spend() };
         let by_tx_hash: [u8; 32] = tx.hash.as_slice().try_into()?;
         for (input_idx, input) in tx.inputs.iter().enumerate() {
             if let Some(outpoint) = &input.outpoint {
@@ -568,13 +664,14 @@ impl IndexDb {
                     by_tx_hash,
                     by_tx_input_idx: U32::new(input_idx as u32),
                 };
-                batch.put_cf(self.cf_tx_out_spend(), utxo_key.as_bytes(), spend.as_bytes());
+                batch.put_cf(cf, utxo_key.as_bytes(), spend.as_bytes());
             }
         }
         Ok(())
     }
 
-    fn add_token_meta(&self, batch: &mut WriteBatch, tx: &bchrpc::Transaction) -> Result<()> {
+    fn add_token_meta(&self, batch: &mut WriteBatch, tx: &bchrpc::Transaction, is_mempool: bool) -> Result<()> {
+        let cf = if is_mempool { self.cf_mempool_token_meta() } else { self.cf_token_meta() };
         use bchrpc::{SlpAction, slp_transaction_info::{TxMetadata, ValidityJudgement}};
         let slp = match &tx.slp_transaction_info {
             Some(slp) if !slp.token_id.is_empty() => slp,
@@ -627,7 +724,7 @@ impl IndexDb {
             },
             _ => return Ok(()),
         };
-        batch.put_cf(self.cf_token_meta(), slp.token_id.as_slice(), bincode::serialize(&token_meta)?);
+        batch.put_cf(cf, slp.token_id.as_slice(), bincode::serialize(&token_meta)?);
         Ok(())
     }
 
