@@ -581,11 +581,14 @@ impl IndexDb {
     }
 
     fn add_token_meta(&self, batch: &mut WriteBatch, tx: &bchrpc::Transaction) -> Result<()> {
-        use bchrpc::{SlpAction, slp_transaction_info::TxMetadata};
+        use bchrpc::{SlpAction, slp_transaction_info::{TxMetadata, ValidityJudgement}};
         let slp = match &tx.slp_transaction_info {
             Some(slp) if !slp.token_id.is_empty() => slp,
             _ => return Ok(()),
         };
+        if slp.validity_judgement() != ValidityJudgement::Valid {
+            return Ok(());
+        }
         let token_meta = match (slp.slp_action(), &slp.tx_metadata) {
             (SlpAction::SlpV1Genesis, Some(TxMetadata::V1Genesis(genesis))) => {
                 TokenMeta {
@@ -617,7 +620,8 @@ impl IndexDb {
                     token_document_url: genesis.document_url.clone(),
                     token_document_hash: genesis.document_hash.clone(),
                     decimals: genesis.decimals,
-                    group_id: Some(genesis.group_token_id.as_slice().try_into()?),
+                    group_id: Some(genesis.group_token_id.as_slice().try_into()
+                        .with_context(|| "Invalid group token id")?),
                 }
             },
             _ => return Ok(()),
