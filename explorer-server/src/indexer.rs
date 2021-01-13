@@ -197,7 +197,7 @@ impl Indexer {
                         let batches = match self.db.make_block_batches(block) {
                             Ok(batches) => batches,
                             Err(err) => {
-                                println!("{}", err);
+                                println!("make_block_batches (height {}): {:?}", block_height, err);
                                 return Err(err);
                             },
                         };

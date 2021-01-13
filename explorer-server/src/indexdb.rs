@@ -1,7 +1,7 @@
 use std::{collections::HashMap, path::Path};
 use std::convert::TryInto;
 
-use anyhow::{Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use serde::de::DeserializeOwned;
 use rocksdb::{ColumnFamily, Options, WriteBatch};
 use zerocopy::{AsBytes, FromBytes, U32, Unaligned};
@@ -273,17 +273,18 @@ impl IndexDb {
                     _ => bail!("Invalid tx in handle_block"),
                 }
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>, _>>()
+            .with_context(|| "Collecting transactions")?;
         let mut batch = WriteBatch::default();
         self.add_block_height_idx(&mut batch, block_info);
-        self.add_block_meta(&mut batch, block_info, &txs)?;
-        self.update_addr_utxo_set(&mut batch, &txs)?;
-        self.update_utxo_set(&mut batch, &txs)?;
+        self.add_block_meta(&mut batch, block_info, &txs).with_context(|| "add_block_meta")?;
+        self.update_addr_utxo_set(&mut batch, &txs).with_context(|| "update_addr_utxo_set")?;
+        self.update_utxo_set(&mut batch, &txs).with_context(|| "update_utxo_set")?;
         for tx in txs {
-            self.add_tx_meta(&mut batch, tx)?;
-            self.add_addr_tx_meta(&mut batch, tx)?;
-            self.add_tx_out_spend(&mut batch, tx)?;
-            self.add_token_meta(&mut batch, tx)?;
+            self.add_tx_meta(&mut batch, tx).with_context(|| "add_tx_meta")?;
+            self.add_addr_tx_meta(&mut batch, tx).with_context(|| "add_addr_tx_meta")?;
+            self.add_tx_out_spend(&mut batch, tx).with_context(|| "add_tx_out_spend")?;
+            self.add_token_meta(&mut batch, tx).with_context(|| "add_token_meta")?;
         }
         Ok(BlockBatches {
             block_height: block_info.height,
