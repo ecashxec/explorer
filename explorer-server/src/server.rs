@@ -5,7 +5,7 @@ use warp::{Reply, http::Uri};
 use serde::Serialize;
 use chrono::{Utc, TimeZone};
 use chrono_humanize::HumanTime;
-use std::{borrow::Cow, collections::{HashMap, hash_map::Entry}, convert::{TryInto, TryFrom}, sync::Arc};
+use std::{borrow::Cow, collections::{BTreeSet, HashMap, hash_map::Entry}, convert::{TryInto, TryFrom}, sync::Arc};
 
 use crate::{blockchain::{BlockHeader, Destination, destination_from_script, is_coinbase, from_le_hex, to_legacy_address, to_le_hex}, formatting::{render_amount, render_byte_size, render_difficulty, render_integer, render_sats}, grpc::bchrpc, indexdb::{AddressBalance, TxOutSpend}, indexer::Indexer, primitives::{SlpAction, TokenMeta, TxMeta, TxMetaVariant}};
 
@@ -63,26 +63,26 @@ impl Server {
         let second_page_begin = first_page_begin.saturating_sub(half_page_size);
         let second_page_end = first_page_begin.saturating_sub(1);
         let last_page = best_height / page_size;
-        let mut pages = Vec::new();
+        let mut pages = BTreeSet::new();
         let curated_page_offsets = &[
             1, 2, 10, 20, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000,
         ];
         for &page_offset in curated_page_offsets.iter().rev() {
             let preceding_page = page.saturating_sub(page_offset) / page_offset * page_offset;
             if preceding_page > 0 {
-                pages.push(preceding_page);
+                pages.insert(preceding_page);
             }
         }
         if page > 0 {
-            pages.push(page);
+            pages.insert(page);
         }
         for &page_offset in curated_page_offsets.iter() {
             let following_page = page.saturating_add(page_offset) / page_offset * page_offset;
             if following_page >= last_page {
-                pages.push(last_page);
+                pages.insert(last_page);
                 break;
             }
-            pages.push(following_page);
+            pages.insert(following_page);
         }
         let markup = html! {
             (DOCTYPE)
