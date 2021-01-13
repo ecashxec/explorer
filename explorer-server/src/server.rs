@@ -51,24 +51,10 @@ impl Server {
         Ok(warp::reply::html(markup.into_string()))
     }
 
-    pub async fn blocks(&self, query: HashMap<String, String>) -> Result<impl Reply> {
-        let half_page_size = 500;
-        let page_size = half_page_size * 2;
-        let best_height = self.indexer.db().last_block_height()?;
-        let page = query.get("page").and_then(|page| page.parse().ok()).unwrap_or(0u32);
-        let half_page = page * 2;
-        let best_page_height = (best_height / half_page_size) * half_page_size;
-        let first_page_begin = best_page_height.saturating_sub(half_page * half_page_size);
-        let first_page_end = (first_page_begin + half_page_size - 1).min(best_height);
-        let second_page_begin = first_page_begin.saturating_sub(half_page_size);
-        let second_page_end = first_page_begin.saturating_sub(1);
-        let last_page = best_height / page_size;
+    fn render_pagination(&self, page: usize, last_page: usize, curated_page_offsets: &[usize], query_str: &str) -> Markup {
         let mut pages = BTreeSet::new();
         pages.insert(0);
         pages.insert(page);
-        let curated_page_offsets = &[
-            1, 2, 3, 10, 20, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000,
-        ];
         for &page_offset in curated_page_offsets.iter().rev() {
             let preceding_page = page.saturating_sub(page_offset) / page_offset * page_offset;
             if preceding_page > 0 {
@@ -83,6 +69,44 @@ impl Server {
             }
             pages.insert(following_page);
         }
+        html! {
+            .bottom-pagination {
+                p {}
+                .ui.pagination.menu {
+                    @for &page in pages.iter() {
+                        @if !pages.contains(&page.saturating_sub(1)) {
+                            @if page.checked_sub(2).map(|page| pages.contains(&page)).unwrap_or(false) {
+                                a.item href={(query_str) ((page - 2))} {
+                                    ((page - 1))
+                                }
+                            } @else {
+                                .item.disabled { "..." }
+                            }
+                        }
+                        a.item href={(query_str) (page)} {
+                            (page)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    pub async fn blocks(&self, query: HashMap<String, String>) -> Result<impl Reply> {
+        let half_page_size = 500;
+        let page_size = half_page_size * 2;
+        let best_height = self.indexer.db().last_block_height()?;
+        let page = query.get("page").and_then(|page| page.parse().ok()).unwrap_or(0u32);
+        let half_page = page * 2;
+        let best_page_height = (best_height / half_page_size) * half_page_size;
+        let first_page_begin = best_page_height.saturating_sub(half_page * half_page_size);
+        let first_page_end = (first_page_begin + half_page_size - 1).min(best_height);
+        let second_page_begin = first_page_begin.saturating_sub(half_page_size);
+        let second_page_end = first_page_begin.saturating_sub(1);
+        let last_page = best_height / page_size;
+        let curated_page_offsets = &[
+            1, 2, 3, 10, 20, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000,
+        ];
         let markup = html! {
             (DOCTYPE)
             head {
@@ -108,25 +132,7 @@ impl Server {
                     #blocks-table {}
                 }
 
-                .bottom-pagination {
-                    p {}
-                    .ui.pagination.menu {
-                        @for &page in pages.iter() {
-                            @if !pages.contains(&page.saturating_sub(1)) {
-                                @if page.checked_sub(2).map(|page| pages.contains(&page)).unwrap_or(false) {
-                                    a.item href={"?page=" ((page - 2))} {
-                                        ((page - 1))
-                                    }
-                                } @else {
-                                    .item.disabled { "..." }
-                                }
-                            }
-                            a.item href={"?page=" (page)} {
-                                (page)
-                            }
-                        }
-                    }
-                }
+                (self.render_pagination(page as usize, last_page as usize, curated_page_offsets, "?page="))
 
                 (self.footer())
                 
@@ -985,6 +991,10 @@ impl Server {
         let legacy_address = to_legacy_address(&address);
         let address_txs = self.indexer.db().address(&sats_address, txs_page * page_size, page_size)?;
         let address_num_txs = self.indexer.db().address_num_txs(&address)?;
+        let last_tx_page = address_num_txs / page_size;
+        let curated_page_offsets = &[
+            1, 2, 3, 4, 5, 10, 20, 100, 1000, 2000,
+        ];
         let json_txs = self.json_txs(
             address_txs
                 .iter()
@@ -1202,6 +1212,10 @@ impl Server {
                         #txs-table {}
                     }
                 }
+                @if last_tx_page != 0 {
+                    (self.render_pagination(txs_page, last_tx_page, curated_page_offsets, "?tx_page="))
+                }
+
                 (self.footer())
             }
         };
