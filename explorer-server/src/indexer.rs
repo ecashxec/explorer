@@ -3,7 +3,7 @@ use std::{collections::HashMap, convert::TryInto, sync::{Arc, atomic::{AtomicUsi
 use anyhow::{Result, anyhow, bail};
 use tonic::transport::{Certificate, Channel, ClientTlsConfig, Endpoint};
 use tokio::sync::{mpsc, watch};
-use crate::{grpc::bchrpc, indexdb::{BlockBatches, IndexDb, TxOutSpend}, primitives::{TokenMeta, TxMeta}};
+use crate::{blockchain::to_le_hex, grpc::bchrpc, indexdb::{BlockBatches, IndexDb, TxOutSpend}, primitives::{TokenMeta, TxMeta}};
 use crate::grpc::bchrpc::bchrpc_client::BchrpcClient;
 
 pub struct Indexer {
@@ -170,6 +170,7 @@ impl Indexer {
         for handle in join_handles {
             handle.await??;
         }
+        self.handle_new_blocks().await;
         Ok(())
     }
 
@@ -210,9 +211,42 @@ impl Indexer {
                 Err(err) => {
                     println!("Error message ({}): {}", block_height, err.message());
                     println!("Error detail ({}): {}", block_height, String::from_utf8_lossy(&err.details()));
-                    return Ok(());
+                    return Err(err.into());
                 }
             }
         }
+    }
+
+    async fn handle_new_blocks(&self) {
+        loop {
+            match self.try_handle_new_blocks().await {
+                Ok(()) => println!("Block stream ended, restarting."),
+                Err(err) => {
+                    println!("Monitor blocks error: {:?}", err);
+                    println!("Restarting monitor_blocks");
+                }
+            }
+        }
+    }
+
+    async fn try_handle_new_blocks(&self) -> Result<()> {
+        use bchrpc::block_notification::Block;
+        use bchrpc::SubscribeBlocksRequest;
+        let mut bchd = self.bchd.clone();
+        let mut block_stream = bchd
+            .subscribe_blocks(SubscribeBlocksRequest {
+                full_block: true,
+                full_transactions: true,
+                serialize_block: false,
+            })
+            .await?;
+        while let Some(notification) = block_stream.get_mut().message().await? {
+            if let Some(Block::MarshaledBlock(block)) = notification.block {
+                println!("New block: {}", to_le_hex(&block.info.as_ref().unwrap().hash));
+                let batches = self.db.make_block_batches(&block)?;
+                self.db.apply_block_batches(batches)?;
+            }
+        }
+        Ok(())
     }
 }
