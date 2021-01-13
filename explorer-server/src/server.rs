@@ -833,10 +833,14 @@ impl Server {
                 td {
                     .amount.hex {
                         @match (&tx_output.slp_token, token_meta) {
-                            (Some(slp), Some(token)) if slp.amount > 0 => {
-                                (render_amount(slp.amount, slp.decimals))
-                                " "
-                                (String::from_utf8_lossy(&token.token_ticker))
+                            (Some(slp), Some(token)) if slp.amount > 0 || slp.is_mint_baton => {
+                                @if slp.is_mint_baton {
+                                    .ui.green.horizontal.label { "Mint baton" }
+                                } @else {
+                                    (render_amount(slp.amount, slp.decimals))
+                                    " "
+                                    (String::from_utf8_lossy(&token.token_ticker))
+                                }
                                 div {
                                     small {
                                         (render_sats(tx_output.value, true))
@@ -926,19 +930,20 @@ impl Server {
                 td {
                     .amount.hex {
                         @match (&tx_input.slp_token, token_meta) {
-                            (Some(slp), Some(token)) if slp.amount > 0 => {
-                                (render_amount(slp.amount, slp.decimals))
-                                " "
-                                (String::from_utf8_lossy(&token.token_ticker))
+                            (Some(slp), Some(token)) if slp.amount > 0 || slp.is_mint_baton => {
+                                @if slp.is_mint_baton {
+                                    .ui.green.horizontal.label { "Mint baton" }
+                                } @else {
+                                    (render_amount(slp.amount, slp.decimals))
+                                    " "
+                                    (String::from_utf8_lossy(&token.token_ticker))
+                                }
                                 div {
                                     small {
                                         (render_sats(tx_input.value, true))
                                         " ABC"
                                     }
                                 }
-                            }
-                            (Some(slp), Some(_)) if slp.is_mint_baton => {
-                                .ui.green.horizontal.label { "Mint baton" }
                             }
                             _ => {
                                 (render_sats(tx_input.value, true))
