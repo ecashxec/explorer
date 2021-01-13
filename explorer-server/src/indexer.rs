@@ -204,6 +204,9 @@ impl Indexer {
                         let _ = send_batches.send(batches).await.map_err(|_| println!("Send failed"));
                     }
                 }
+                Err(err) if err.message() == "block not found" => {
+                    return Ok(());
+                }
                 Err(err) => {
                     println!("Error message ({}): {}", block_height, err.message());
                     println!("Error detail ({}): {}", block_height, String::from_utf8_lossy(&err.details()));
