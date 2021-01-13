@@ -984,6 +984,7 @@ impl Server {
         let token_address = address.with_prefix(self.tokens_addr_prefix);
         let legacy_address = to_legacy_address(&address);
         let address_txs = self.indexer.db().address(&sats_address, txs_page * page_size, page_size)?;
+        let address_num_txs = self.indexer.db().address_num_txs(&address)?;
         let json_txs = self.json_txs(
             address_txs
                 .iter()
@@ -1106,6 +1107,10 @@ impl Server {
                                                         h3 {
                                                             "+" (render_sats(token_dust, true)) " ABC in token dust"
                                                         }
+                                                    }
+                                                    @match address_num_txs {
+                                                        1 => (address_num_txs) " Transaction",
+                                                        _ => (address_num_txs) " Transactions",
                                                     }
                                                     table.addresses.ui.table.very.basic.collapsing.celled.compact {
                                                         tbody {

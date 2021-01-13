@@ -226,11 +226,31 @@ impl IndexDb {
         Ok(entries)
     }
 
+    pub fn address_num_txs(&self, address: &Address<'_>) -> Result<usize> {
+        let addr_prefix = AddrKeyPrefix {
+            addr_type: address.addr_type() as u8,
+            addr_hash: address.hash().as_slice().try_into().unwrap(),
+        };
+        let mut iter_addr_tx = self.db.raw_iterator_cf(self.cf_addr_tx_meta());
+        iter_addr_tx.seek(addr_prefix.as_bytes());
+        let mut n = 0;
+        while let Some(key) = iter_addr_tx.key() {
+            let mut addr_tx_key = AddrTxKey::default();
+            addr_tx_key.as_bytes_mut().copy_from_slice(&key);
+            if addr_tx_key.addr_hash != addr_prefix.addr_hash {
+                break;
+            }
+            n += 1;
+            iter_addr_tx.next();
+        }
+        Ok(n)
+    }
+
     pub fn utxo(&self, utxo_key: &UtxoKey) -> Result<Option<Utxo>> {
         self.db_get_option(self.cf_utxo_set(), utxo_key.as_bytes())
     }
 
-    pub fn address_balance(&self, sats_address: &Address<'_>, skip: usize, take: usize) -> Result<AddressBalance> {
+    pub fn address_balance(&self, sats_address: &Address<'_>, _skip: usize, _take: usize) -> Result<AddressBalance> {
         let mut utxos = HashMap::new();
         let mut balances = HashMap::new();
         let addr_prefix = AddrKeyPrefix {
