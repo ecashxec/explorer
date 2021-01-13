@@ -58,6 +58,12 @@ async fn main() -> Result<()> {
         .and_then(|block_hash: String, server: ServerRef| async move {
             server.block(&block_hash).await.map_err(err)
         });
+
+    let block_height = warp::path!("block-height" / u32)
+        .and(with_server(&server))
+        .and_then(|block_height: u32, server: ServerRef| async move {
+            server.block_height(block_height).await.map_err(err)
+        });
     
     let tx = warp::path!("tx" / String)
         .and(with_server(&server))
@@ -110,6 +116,7 @@ async fn main() -> Result<()> {
     let routes = dashboard
         .or(blocks)
         .or(block)
+        .or(block_height)
         .or(tx)
         .or(address)
         .or(address_qr)

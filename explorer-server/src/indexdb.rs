@@ -147,6 +147,13 @@ impl IndexDb {
         Ok(block_metas)
     }
 
+    pub fn block_hash_at(&self, height: u32) -> Result<Option<[u8; 32]>> {
+        let height_key = height.to_be_bytes();
+        let block_hash = self.db.get_cf(self.cf_block_height_idx(), height_key)?;
+        let block_hash = block_hash.map(|block_hash| block_hash.as_slice().try_into()).transpose()?;
+        Ok(block_hash)
+    }
+
     pub fn block_meta(&self, block_hash: &[u8]) -> Result<Option<BlockMeta>> {
         self.db_get_option(self.cf_block_meta(), block_hash)
     }
@@ -195,8 +202,11 @@ impl IndexDb {
         };
         let mut entries = Vec::new();
         let mut iter_addr_tx = self.db.raw_iterator_cf(self.cf_addr_tx_meta());
-        iter_addr_tx.seek(addr_prefix.as_bytes());
-        (0..skip).for_each(|_| iter_addr_tx.next());
+        let mut seek_key = addr_prefix.as_bytes().to_vec();
+        inc_bytes(&mut seek_key);
+        iter_addr_tx.seek(seek_key);
+        iter_addr_tx.prev();
+        (0..skip).for_each(|_| iter_addr_tx.prev());
         let mut n = 0;
         while let (Some(key), Some(value)) = (iter_addr_tx.key(), iter_addr_tx.value()) {
             if n == take {
@@ -210,7 +220,7 @@ impl IndexDb {
             let address_tx: AddressTx = bincode::deserialize(&value)?;
             let tx_meta = self.tx_meta(&addr_tx_key.tx_hash)?.ok_or_else(|| anyhow!("No tx meta"))?;
             entries.push((addr_tx_key.tx_hash, address_tx, tx_meta));
-            iter_addr_tx.next();
+            iter_addr_tx.prev();
             n += 1;
         }
         Ok(entries)
@@ -627,5 +637,14 @@ impl IndexDb {
         Ok(item
             .map(|item| bincode::deserialize(&item))
             .transpose()?)
+    }
+}
+
+fn inc_bytes(bytes: &mut [u8]) {
+    for byte in bytes.iter_mut().rev() {
+        *byte = byte.wrapping_add(1);
+        if *byte != 0 {
+            return;
+        }
     }
 }

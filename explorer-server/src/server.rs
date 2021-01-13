@@ -1,13 +1,13 @@
 use anyhow::{Result, anyhow, bail};
 use bitcoin_cash::{Address, Script};
 use maud::{DOCTYPE, Markup, PreEscaped, html};
-use warp::Reply;
+use warp::{Reply, http::Uri};
 use serde::Serialize;
 use chrono::{Utc, TimeZone};
 use chrono_humanize::HumanTime;
-use std::{borrow::Cow, collections::{HashMap, hash_map::Entry}, convert::TryInto, sync::Arc};
+use std::{borrow::Cow, collections::{HashMap, hash_map::Entry}, convert::{TryInto, TryFrom}, sync::Arc};
 
-use crate::{blockchain::{BlockHeader, Destination, destination_from_script, from_le_hex, to_legacy_address, to_le_hex}, formatting::{render_amount, render_byte_size, render_difficulty, render_integer, render_sats}, grpc::bchrpc, indexdb::{AddressBalance, TxOutSpend}, indexer::Indexer, primitives::{SlpAction, TokenMeta, TxMeta, TxMetaVariant}};
+use crate::{blockchain::{BlockHeader, Destination, destination_from_script, is_coinbase, from_le_hex, to_legacy_address, to_le_hex}, formatting::{render_amount, render_byte_size, render_difficulty, render_integer, render_sats}, grpc::bchrpc, indexdb::{AddressBalance, TxOutSpend}, indexer::Indexer, primitives::{SlpAction, TokenMeta, TxMeta, TxMetaVariant}};
 
 pub struct Server {
     indexer: Arc<Indexer>,
@@ -49,11 +49,11 @@ impl Server {
             }
         };
         Ok(warp::reply::html(markup.into_string()))
-
     }
 
     pub async fn blocks(&self, query: HashMap<String, String>) -> Result<impl Reply> {
         let half_page_size = 500;
+        let page_size = half_page_size * 2;
         let best_height = self.indexer.db().last_block_height()?;
         let page = query.get("page").and_then(|page| page.parse().ok()).unwrap_or(0u32);
         let half_page = page * 2;
@@ -62,6 +62,28 @@ impl Server {
         let first_page_end = (first_page_begin + half_page_size - 1).min(best_height);
         let second_page_begin = first_page_begin.saturating_sub(half_page_size);
         let second_page_end = first_page_begin.saturating_sub(1);
+        let last_page = best_height / page_size;
+        let mut pages = Vec::new();
+        let curated_page_offsets = &[
+            1, 2, 10, 20, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000,
+        ];
+        for &page_offset in curated_page_offsets.iter().rev() {
+            let preceding_page = page.saturating_sub(page_offset) / page_offset * page_offset;
+            if preceding_page > 0 {
+                pages.push(preceding_page);
+            }
+        }
+        if page > 0 {
+            pages.push(page);
+        }
+        for &page_offset in curated_page_offsets.iter() {
+            let following_page = page.saturating_add(page_offset) / page_offset * page_offset;
+            if following_page >= last_page {
+                pages.push(last_page);
+                break;
+            }
+            pages.push(following_page);
+        }
         let markup = html! {
             (DOCTYPE)
             head {
@@ -85,6 +107,18 @@ impl Server {
 
                 #blocks {
                     #blocks-table {}
+                }
+
+                .ui.container {
+                    p {}
+                    .ui.pagination.menu {
+                        a.item href={"?page=0"} { "0" }
+                        @for page in pages {
+                            a.item href={"?page=" (page)} {
+                                (page)
+                            }
+                        }
+                    }
                 }
 
                 (self.footer())
@@ -788,6 +822,7 @@ impl Server {
                                 (address.cash_addr())
                             }},
                             Destination::Nulldata(_ops) => "OP_RETURN data",
+                            Destination::P2PK(pubkey) => {"Pubkey: " (hex::encode(&pubkey))},
                             Destination::Unknown(_bytes) => "Unknown",
                         }
                     }
@@ -844,6 +879,7 @@ impl Server {
         token_meta: &Option<TokenMeta>,
     ) -> Markup {
         let is_token = tx_input.slp_token.as_ref().map(|slp| slp.amount > 0 || slp.is_mint_baton).unwrap_or(false);
+        let outpoint = tx_input.outpoint.as_ref().expect("No outpoint");
         let destination = destination_from_script(
             if is_token { self.tokens_addr_prefix } else { self.satoshi_addr_prefix },
             &tx_input.previous_script,
@@ -853,27 +889,34 @@ impl Server {
             .unwrap_or("invalid script".to_string());
         html! {
             tr {
-                td {
-                    a href={"/tx/" (to_le_hex(&tx_input.outpoint.as_ref().expect("No outpoint").hash))} {
-                        img src={"/assets/input.svg"} {}
+                @if is_coinbase(outpoint) {
+                    td {
+                        .ui.green.horizontal.label { "Coinbase" }
                     }
-                }
-                td {
-                    (tx_input.index)
-                }
-                td {
-                    @if is_token {
-                        img src="/assets/slp-logo.png" {}
+                } @else {
+                    td {
+                        a href={"/tx/" (to_le_hex(&outpoint.hash))} {
+                            img src={"/assets/input.svg"} {}
+                        }
                     }
-                }
-                td {
-                    .destination.hex {
-                        @match &destination {
-                            Destination::Address(address) => {a href={"/address/" (address.cash_addr())} {
-                                (address.cash_addr())
-                            }},
-                            Destination::Unknown(_bytes) => "Unknown",
-                            Destination::Nulldata(_ops) => "Unreachable",
+                    td {
+                        (tx_input.index)
+                    }
+                    td {
+                        @if is_token {
+                            img src="/assets/slp-logo.png" {}
+                        }
+                    }
+                    td {
+                        .destination.hex {
+                            @match &destination {
+                                Destination::Address(address) => {a href={"/address/" (address.cash_addr())} {
+                                    (address.cash_addr())
+                                }},
+                                Destination::P2PK(pubkey) => {"Pubkey: " (hex::encode(&pubkey))},
+                                Destination::Unknown(_bytes) => "Unknown",
+                                Destination::Nulldata(_ops) => "Unreachable",
+                            }
                         }
                     }
                 }
@@ -1161,6 +1204,20 @@ impl Server {
         let png = qrcode_generator::to_png_to_vec(address, QrCodeEcc::Quartile, 160)?;
         let reply = warp::reply::with_header(png, "Content-Type", "image/png");
         Ok(reply)
+    }
+
+    pub async fn block_height(&self, height: u32) -> Result<Box<dyn Reply>> {
+        let block_hash = self.indexer.db().block_hash_at(height)?;
+        match block_hash {
+            Some(block_hash) => {
+                let block_hash_str = to_le_hex(&block_hash);
+                let url = format!("/block/{}", block_hash_str);
+                Ok(Box::new(warp::redirect(Uri::try_from(url.as_str())?)))
+            },
+            None => Ok(Box::new(warp::reply::html(html! {
+                h1 { "Not found" }
+            }.into_string())))
+        }
     }
 
     pub async fn search(&self, query: &str) -> Result<Box<dyn Reply>> {

@@ -44,6 +44,7 @@ pub fn from_le_hex(string: &str) -> Result<Vec<u8>> {
 pub enum Destination<'a> {
     Nulldata(Vec<Op>),
     Address(Address<'a>),
+    P2PK(Vec<u8>),
     Unknown(Vec<u8>),
 }
 
@@ -73,6 +74,8 @@ pub fn destination_from_script<'a>(prefix: &'a str, script: &[u8]) -> Destinatio
                 )
             )
         }
+        [33, pk @ .., OP_CHECKSIG] => Destination::P2PK(pk.to_vec()),
+        [65, pk @ .., OP_CHECKSIG] => Destination::P2PK(pk.to_vec()),
         [OP_RETURN, data @ ..] => {
             let ops = Script::deser_ops(data.into()).unwrap_or(Script::new(vec![]));
             Destination::Nulldata(ops.ops().into_iter().map(|op| op.op.clone()).collect())
