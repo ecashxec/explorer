@@ -351,14 +351,14 @@ impl IndexDb {
                 if addr_utxo_key.addr != addr_prefix {
                     break;
                 }
-                let utxo = self.utxo(&addr_utxo_key.utxo_key)?
-                    .ok_or_else(|| anyhow!("No such utxo: {}:{}", to_le_hex(&addr_utxo_key.utxo_key.tx_hash), addr_utxo_key.utxo_key.out_idx))?;
-                if self.db.get_cf(self.cf_mempool_utxo_set_remove(), addr_utxo_key.utxo_key.as_bytes())?.is_none() {
-                    let token_utxos = utxos.entry(utxo.token_id).or_insert(vec![]);
-                    let (balance_sats, balance_token) = balances.entry(utxo.token_id).or_insert((0, 0));
-                    *balance_sats += utxo.sats_amount;
-                    *balance_token += utxo.token_amount;
-                    token_utxos.push((addr_utxo_key.utxo_key, utxo));
+                if let Some(utxo) = self.utxo(&addr_utxo_key.utxo_key)? {
+                    if self.db.get_cf(self.cf_mempool_utxo_set_remove(), addr_utxo_key.utxo_key.as_bytes())?.is_none() {
+                        let token_utxos = utxos.entry(utxo.token_id).or_insert(vec![]);
+                        let (balance_sats, balance_token) = balances.entry(utxo.token_id).or_insert((0, 0));
+                        *balance_sats += utxo.sats_amount;
+                        *balance_token += utxo.token_amount;
+                        token_utxos.push((addr_utxo_key.utxo_key, utxo));
+                    }
                 }
                 iter_addr_utxo.next();
             }
