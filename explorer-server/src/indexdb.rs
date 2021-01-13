@@ -209,6 +209,19 @@ impl IndexDb {
 
     pub fn tx_out_spends(&self, tx_hash: &[u8]) -> Result<HashMap<u32, Option<TxOutSpend>>> {
         let mut spends = HashMap::new();
+        for &cf in &[self.cf_mempool_utxo_set_add(), self.cf_utxo_set()] {
+            let mut iter_utxos = self.db.raw_iterator_cf(cf);
+            iter_utxos.seek(tx_hash);
+            while let Some(key) = iter_utxos.key() {
+                let mut utxo_key = UtxoKey::default();
+                utxo_key.as_bytes_mut().copy_from_slice(&key);
+                if &utxo_key.tx_hash != tx_hash {
+                    break;
+                }
+                spends.insert(utxo_key.out_idx.get(), None);
+                iter_utxos.next();
+            }
+        }
         for &cf in &[self.cf_mempool_tx_out_spend(), self.cf_tx_out_spend()] {
             let mut iter_spends = self.db.raw_iterator_cf(cf);
             iter_spends.seek(tx_hash);
@@ -222,17 +235,6 @@ impl IndexDb {
                 tx_out_spend.as_bytes_mut().copy_from_slice(&value);
                 spends.insert(utxo_key.out_idx.get(), Some(tx_out_spend));
                 iter_spends.next();
-            }
-            let mut iter_utxos = self.db.raw_iterator_cf(self.cf_utxo_set());
-            iter_utxos.seek(tx_hash);
-            while let Some(key) = iter_utxos.key() {
-                let mut utxo_key = UtxoKey::default();
-                utxo_key.as_bytes_mut().copy_from_slice(&key);
-                if &utxo_key.tx_hash != tx_hash {
-                    break;
-                }
-                spends.insert(utxo_key.out_idx.get(), None);
-                iter_utxos.next();
             }
         }
         Ok(spends)
