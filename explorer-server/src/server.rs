@@ -1162,7 +1162,7 @@ impl Server {
                                             #sats-coins style="display: none;" {
                                                 #sats-coins-table {}
                                             }
-                                            script type="text/javascript" src="/code/coins.js?v=0" {}
+                                            script type="text/javascript" src="/code/coins.js?v=1" {}
                                         }
                                     }
                                 },

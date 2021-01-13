@@ -352,13 +352,11 @@ impl IndexDb {
                     break;
                 }
                 if let Some(utxo) = self.utxo(&addr_utxo_key.utxo_key)? {
-                    if self.db.get_cf(self.cf_mempool_utxo_set_remove(), addr_utxo_key.utxo_key.as_bytes())?.is_none() {
-                        let token_utxos = utxos.entry(utxo.token_id).or_insert(vec![]);
-                        let (balance_sats, balance_token) = balances.entry(utxo.token_id).or_insert((0, 0));
-                        *balance_sats += utxo.sats_amount;
-                        *balance_token += utxo.token_amount;
-                        token_utxos.push((addr_utxo_key.utxo_key, utxo));
-                    }
+                    let token_utxos = utxos.entry(utxo.token_id).or_insert(vec![]);
+                    let (balance_sats, balance_token) = balances.entry(utxo.token_id).or_insert((0, 0));
+                    *balance_sats += utxo.sats_amount;
+                    *balance_token += utxo.token_amount;
+                    token_utxos.push((addr_utxo_key.utxo_key, utxo));
                 }
                 iter_addr_utxo.next();
             }

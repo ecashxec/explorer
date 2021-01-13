@@ -106,6 +106,9 @@ webix.ready(function(){
         header: "Age",
         adjust: true,
         template: function (row) {
+          if (row.timestamp == 0) {
+            return '<div class="ui green horizontal label">Mempool</div>';
+          }
           return moment(row.timestamp).fromNow();
         },
       },
@@ -114,6 +117,9 @@ webix.ready(function(){
         header: "Date (UTC" + tzOffset + ")",
         width: 160,
         template: function (row) {
+          if (row.timestamp == 0) {
+            return '<div class="ui green horizontal label">Mempool</div>';
+          }
           return moment(row.timestamp).format('ll, LTS');
         },
       },
@@ -131,6 +137,9 @@ webix.ready(function(){
         header: "Block Height",
         width: 95,
         template: function (row) {
+          if (row.timestamp == 0) {
+            return '<div class="ui green horizontal label">Mempool</div>';
+          }
           return '<a href="/block-height/' + row.blockHeight + '">' + renderInteger(row.blockHeight) + '</a>';
         },
       },
