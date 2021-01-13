@@ -194,57 +194,86 @@ impl IndexDb {
     }
 
     pub fn tx_meta(&self, tx_hash: &[u8]) -> Result<Option<TxMeta>> {
-        self.db_get_option(self.cf_tx_meta(), tx_hash)
+        match self.db_get_option(self.cf_mempool_tx_meta(), tx_hash)? {
+            Some(tx) => Ok(Some(tx)),
+            None => self.db_get_option(self.cf_tx_meta(), tx_hash)
+        }
     }
 
     pub fn token_meta(&self, token_id: &[u8]) -> Result<Option<TokenMeta>> {
-        self.db_get_option(self.cf_token_meta(), token_id)
+        match self.db_get_option(self.cf_mempool_token_meta(), token_id)? {
+            Some(tx) => Ok(Some(tx)),
+            None => self.db_get_option(self.cf_token_meta(), token_id)
+        }
     }
 
     pub fn tx_out_spends(&self, tx_hash: &[u8]) -> Result<HashMap<u32, Option<TxOutSpend>>> {
         let mut spends = HashMap::new();
-        let mut iter_spends = self.db.raw_iterator_cf(self.cf_tx_out_spend());
-        iter_spends.seek(tx_hash);
-        while let (Some(key), Some(value)) = (iter_spends.key(), iter_spends.value()) {
-            let mut utxo_key = UtxoKey::default();
-            utxo_key.as_bytes_mut().copy_from_slice(&key);
-            if &utxo_key.tx_hash != tx_hash {
-                break;
+        for &cf in &[self.cf_mempool_tx_out_spend(), self.cf_tx_out_spend()] {
+            let mut iter_spends = self.db.raw_iterator_cf(cf);
+            iter_spends.seek(tx_hash);
+            while let (Some(key), Some(value)) = (iter_spends.key(), iter_spends.value()) {
+                let mut utxo_key = UtxoKey::default();
+                utxo_key.as_bytes_mut().copy_from_slice(&key);
+                if &utxo_key.tx_hash != tx_hash {
+                    break;
+                }
+                let mut tx_out_spend = TxOutSpend::default();
+                tx_out_spend.as_bytes_mut().copy_from_slice(&value);
+                spends.insert(utxo_key.out_idx.get(), Some(tx_out_spend));
+                iter_spends.next();
             }
-            let mut tx_out_spend = TxOutSpend::default();
-            tx_out_spend.as_bytes_mut().copy_from_slice(&value);
-            spends.insert(utxo_key.out_idx.get(), Some(tx_out_spend));
-            iter_spends.next();
-        }
-        let mut iter_utxos = self.db.raw_iterator_cf(self.cf_utxo_set());
-        iter_utxos.seek(tx_hash);
-        while let Some(key) = iter_utxos.key() {
-            let mut utxo_key = UtxoKey::default();
-            utxo_key.as_bytes_mut().copy_from_slice(&key);
-            if &utxo_key.tx_hash != tx_hash {
-                break;
+            let mut iter_utxos = self.db.raw_iterator_cf(self.cf_utxo_set());
+            iter_utxos.seek(tx_hash);
+            while let Some(key) = iter_utxos.key() {
+                let mut utxo_key = UtxoKey::default();
+                utxo_key.as_bytes_mut().copy_from_slice(&key);
+                if &utxo_key.tx_hash != tx_hash {
+                    break;
+                }
+                spends.insert(utxo_key.out_idx.get(), None);
+                iter_utxos.next();
             }
-            spends.insert(utxo_key.out_idx.get(), None);
-            iter_utxos.next();
         }
         Ok(spends)
     }
 
-    pub fn address(&self, address: &Address<'_>, skip: usize, take: usize) -> Result<Vec<([u8; 32], AddressTx, TxMeta)>> {
+    pub fn address(&self, address: &Address<'_>, mut skip: usize, take: usize) -> Result<Vec<([u8; 32], AddressTx, TxMeta)>> {
         let addr_prefix = AddrKeyPrefix {
             addr_type: address.addr_type() as u8,
             addr_hash: address.hash().as_slice().try_into().unwrap(),
         };
         let mut entries = Vec::new();
+
+        let mut iter_mempool_addr_tx = self.db.raw_iterator_cf(self.cf_mempool_addr_tx_meta());
+        iter_mempool_addr_tx.seek(addr_prefix.as_bytes());
+        (0..skip).for_each(|_| iter_mempool_addr_tx.next());
+        let mut n = 0;
+        while let (Some(key), Some(value)) = (iter_mempool_addr_tx.key(), iter_mempool_addr_tx.value()) {
+            if n >= take {
+                break;
+            }
+            let mut addr_tx_key = AddrTxKey::default();
+            addr_tx_key.as_bytes_mut().copy_from_slice(&key);
+            if addr_tx_key.addr_hash != addr_prefix.addr_hash {
+                break;
+            }
+            let address_tx: AddressTx = bincode::deserialize(&value)?;
+            let tx_meta = self.tx_meta(&addr_tx_key.tx_hash)?.ok_or_else(|| anyhow!("No tx meta"))?;
+            entries.push((addr_tx_key.tx_hash, address_tx, tx_meta));
+            iter_mempool_addr_tx.next();
+            n += 1;
+        }
+
+        skip = skip.saturating_sub(n);
         let mut iter_addr_tx = self.db.raw_iterator_cf(self.cf_addr_tx_meta());
         let mut seek_key = addr_prefix.as_bytes().to_vec();
         inc_bytes(&mut seek_key);
         iter_addr_tx.seek(seek_key);
         iter_addr_tx.prev();
         (0..skip).for_each(|_| iter_addr_tx.prev());
-        let mut n = 0;
         while let (Some(key), Some(value)) = (iter_addr_tx.key(), iter_addr_tx.value()) {
-            if n == take {
+            if n >= take {
                 break;
             }
             let mut addr_tx_key = AddrTxKey::default();
@@ -266,23 +295,31 @@ impl IndexDb {
             addr_type: address.addr_type() as u8,
             addr_hash: address.hash().as_slice().try_into().unwrap(),
         };
-        let mut iter_addr_tx = self.db.raw_iterator_cf(self.cf_addr_tx_meta());
-        iter_addr_tx.seek(addr_prefix.as_bytes());
         let mut n = 0;
-        while let Some(key) = iter_addr_tx.key() {
-            let mut addr_tx_key = AddrTxKey::default();
-            addr_tx_key.as_bytes_mut().copy_from_slice(&key);
-            if addr_tx_key.addr_hash != addr_prefix.addr_hash {
-                break;
+        for &cf in &[self.cf_mempool_addr_tx_meta(), self.cf_addr_tx_meta()] {
+            let mut iter_addr_tx = self.db.raw_iterator_cf(cf);
+            iter_addr_tx.seek(addr_prefix.as_bytes());
+            while let Some(key) = iter_addr_tx.key() {
+                let mut addr_tx_key = AddrTxKey::default();
+                addr_tx_key.as_bytes_mut().copy_from_slice(&key);
+                if addr_tx_key.addr_hash != addr_prefix.addr_hash {
+                    break;
+                }
+                n += 1;
+                iter_addr_tx.next();
             }
-            n += 1;
-            iter_addr_tx.next();
         }
         Ok(n)
     }
 
     pub fn utxo(&self, utxo_key: &UtxoKey) -> Result<Option<Utxo>> {
-        self.db_get_option(self.cf_utxo_set(), utxo_key.as_bytes())
+        if let Some(_) = self.db.get_cf(self.cf_mempool_utxo_set_remove(), utxo_key.as_bytes())? {
+            return Ok(None);
+        }
+        match self.db_get_option(self.cf_mempool_utxo_set_add(), utxo_key.as_bytes())? {
+            Some(tx) => Ok(Some(tx)),
+            None => self.db_get_option(self.cf_utxo_set(), utxo_key.as_bytes())
+        }
     }
 
     pub fn address_balance(&self, sats_address: &Address<'_>, _skip: usize, _take: usize) -> Result<AddressBalance> {
@@ -294,22 +331,26 @@ impl IndexDb {
         };
         utxos.insert(None, vec![]);
         balances.insert(None, (0, 0));
-        let mut iter_addr_utxo = self.db.raw_iterator_cf(self.cf_addr_utxo());
-        iter_addr_utxo.seek(addr_prefix.as_bytes());
-        while let Some(key) = iter_addr_utxo.key() {
-            let mut addr_utxo_key = AddrUtxoKey::default();
-            addr_utxo_key.as_bytes_mut().copy_from_slice(&key);
-            if addr_utxo_key.addr != addr_prefix {
-                break;
+        for &cf in &[self.cf_mempool_addr_utxo_add(), self.cf_addr_utxo()] {
+            let mut iter_addr_utxo = self.db.raw_iterator_cf(cf);
+            iter_addr_utxo.seek(addr_prefix.as_bytes());
+            while let Some(key) = iter_addr_utxo.key() {
+                let mut addr_utxo_key = AddrUtxoKey::default();
+                addr_utxo_key.as_bytes_mut().copy_from_slice(&key);
+                if addr_utxo_key.addr != addr_prefix {
+                    break;
+                }
+                let utxo = self.utxo(&addr_utxo_key.utxo_key)?
+                    .ok_or_else(|| anyhow!("No such utxo: {}:{}", to_le_hex(&addr_utxo_key.utxo_key.tx_hash), addr_utxo_key.utxo_key.out_idx))?;
+                if self.db.get_cf(self.cf_mempool_utxo_set_remove(), addr_utxo_key.utxo_key.as_bytes())?.is_none() {
+                    let token_utxos = utxos.entry(utxo.token_id).or_insert(vec![]);
+                    let (balance_sats, balance_token) = balances.entry(utxo.token_id).or_insert((0, 0));
+                    *balance_sats += utxo.sats_amount;
+                    *balance_token += utxo.token_amount;
+                    token_utxos.push((addr_utxo_key.utxo_key, utxo));
+                }
+                iter_addr_utxo.next();
             }
-            let utxo = self.utxo(&addr_utxo_key.utxo_key)?
-                .ok_or_else(|| anyhow!("No such utxo: {}:{}", to_le_hex(&addr_utxo_key.utxo_key.tx_hash), addr_utxo_key.utxo_key.out_idx))?;
-            let token_utxos = utxos.entry(utxo.token_id).or_insert(vec![]);
-            let (balance_sats, balance_token) = balances.entry(utxo.token_id).or_insert((0, 0));
-            *balance_sats += utxo.sats_amount;
-            *balance_token += utxo.token_amount;
-            token_utxos.push((addr_utxo_key.utxo_key, utxo));
-            iter_addr_utxo.next();
         }
         Ok(AddressBalance { utxos, balances })
     }
