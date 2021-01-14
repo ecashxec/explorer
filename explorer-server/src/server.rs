@@ -6,6 +6,7 @@ use serde::Serialize;
 use chrono::{Utc, TimeZone};
 use chrono_humanize::HumanTime;
 use std::{borrow::Cow, collections::{BTreeSet, HashMap, hash_map::Entry}, convert::{TryInto, TryFrom}, sync::Arc};
+use zerocopy::{AsBytes, byteorder::{I32, U32}};
 
 use crate::{blockchain::{BlockHeader, Destination, destination_from_script, is_coinbase, from_le_hex, to_legacy_address, to_le_hex}, formatting::{render_amount, render_byte_size, render_difficulty, render_integer, render_sats}, grpc::bchrpc, indexdb::{AddressBalance, TxOutSpend}, indexer::Indexer, primitives::{SlpAction, TokenMeta, TxMeta, TxMetaVariant}};
 
@@ -345,12 +346,12 @@ impl Server {
         let confirmations = best_height - block_meta.height as u32 + 1;
         let timestamp = Utc.timestamp(block_meta.timestamp, 0);
         let mut block_header = BlockHeader::default();
-        block_header.version = block_meta.version;
+        block_header.version = I32::new(block_meta.version);
         block_header.previous_block = block_meta.previous_block;
         block_header.merkle_root = block_meta.merkle_root;
-        block_header.timestamp = block_meta.timestamp.try_into()?;
-        block_header.bits = block_meta.bits;
-        block_header.nonce = block_meta.nonce;
+        block_header.timestamp = U32::new(block_meta.timestamp.try_into()?);
+        block_header.bits = U32::new(block_meta.bits);
+        block_header.nonce = U32::new(block_meta.nonce);
         
         let markup = html! {
             (DOCTYPE)
@@ -416,7 +417,7 @@ impl Server {
                                         td { "Header" }
                                         td {
                                             .hex {
-                                                (hex::encode(block_header.as_slice()))
+                                                (hex::encode(block_header.as_bytes()))
                                             }
                                         }
                                     }

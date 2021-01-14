@@ -1,0 +1,1 @@
+- If the number of half-pages is odd, the genesis block will be displayed twice

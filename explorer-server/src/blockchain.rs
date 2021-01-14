@@ -2,26 +2,20 @@ use std::str::FromStr;
 
 use anyhow::Result;
 use bitcoin_cash::{Address, AddressType, Hash160, Hashed, Op, Opcode, Ops, Script};
+use zerocopy::{FromBytes, AsBytes, Unaligned, byteorder::{I32, U32}};
+use byteorder::LittleEndian;
 
 use crate::grpc::bchrpc;
 
-#[derive(Default)]
+#[derive(FromBytes, AsBytes, Unaligned, Debug, Default, Clone, Copy)]
 #[repr(C, align(1))]
 pub struct BlockHeader {
-    pub version: i32,
+    pub version: I32<LittleEndian>,
     pub previous_block: [u8; 32],
     pub merkle_root: [u8; 32],
-    pub timestamp: u32,
-    pub bits: u32,
-    pub nonce: u32,
-}
-
-unsafe impl plain::Plain for BlockHeader {}
-
-impl BlockHeader {
-    pub fn as_slice(&self) -> &[u8] {
-        unsafe { plain::as_bytes(self) }
-    }
+    pub timestamp: U32<LittleEndian>,
+    pub bits: U32<LittleEndian>,
+    pub nonce: U32<LittleEndian>,
 }
 
 pub fn to_le_hex(slice: &[u8]) -> String {
