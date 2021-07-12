@@ -23,10 +23,14 @@ function renderInteger(number) {
   var fmt = Intl.NumberFormat('en-EN').format(number);
   var parts = fmt.split(',');
   var str = '';
-  for (var i = 0; i < parts.length - 1; ++i) {
-    str += '<span class="digit-sep">' + parts[i] + '</span>';
+  for (var i = 0; i < parts.length; ++i) {
+    const classSep = i == parts.length - 1 ? '' : "digit-sep";
+    if (i >= 2) {
+      str += '<small class="' + classSep + '">' + parts[i] + '</small>';
+    } else {
+      str += '<span class="' + classSep + '">' + parts[i] + '</span>';
+    }
   }
-  str += '<span>' + parts[parts.length - 1] + '</span>';
   return str;
 }
 
@@ -56,32 +60,17 @@ function renderAmount(baseAmount, decimals) {
 }
 
 function renderSats(sats) {
-  var coins = sats / 100000000;
-  var fmt = coins.toFixed('8');
+  var coins = sats / 100;
+  var fmt = coins.toFixed('2');
   var parts = fmt.split('.');
   var integerPart = parseInt(parts[0]);
   var fractPart = parts[1];
-  var fract1 = fractPart.substr(0, 3);
-  var fract2 = fractPart.substr(3, 3);
-  var fract3 = fractPart.substr(6, 2);
-  var z1 = fract1 === '000';
-  var z2 = fract2 === '000';
-  var z3 = fract3 === '00';
-  var renderedFract1 = z1 && z2 && z3
-    ? '<span class="zeros digit-sep">' + fract1 + '</span>'
-    : '<span class="digit-sep">' + fract1 + '</span>';
-  var renderedFract2 = z2 && z3
-    ? '<small class="zeros digit-sep">' + fract2 + '</small>'
-    : '<small class="digit-sep">' + fract2 + '</small>';
-  var renderedFract3 = z3
-    ? '<small class="zeros digit-sep">' + fract3 + '</small>'
-    : '<small class="digit-sep">' + fract3 + '</small>';
-  if (coins < 100) {
-    return renderInteger(integerPart) + '.' + renderedFract1 + renderedFract2 + renderedFract3;
-  } else if (coins < 10000) {
-    return renderInteger(integerPart) + '.' + renderedFract1 + renderedFract2;
+  var fractZero = fractPart === '00';
+
+  if (fractZero) {
+    return renderInteger(integerPart);
   } else {
-    return renderInteger(integerPart) + '.' + renderedFract1;
+    return renderInteger(integerPart) + '.<small>' + fractPart + '</small>';
   }
 }
 

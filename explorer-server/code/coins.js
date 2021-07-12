@@ -28,10 +28,10 @@ function loadSatsTable() {
         },
         {
           id: "amount",
-          header: "ABC amount",
+          header: "XEC amount",
           adjust: true,
           template: function (row) {
-            return renderSats(row.satsAmount) + ' ABC';
+            return renderSats(row.satsAmount) + ' XEC';
           },
         },
       ],
@@ -81,10 +81,10 @@ function loadTokenTable(balanceIdx) {
         },
         {
           id: "satsAmount",
-          header: "ABC amount",
+          header: "XEC amount",
           adjust: true,
           template: function (row) {
-            return renderSats(row.satsAmount) + ' ABC';
+            return renderSats(row.satsAmount) + ' XEC';
           },
         },
       ],
@@ -189,10 +189,10 @@ webix.ready(function(){
       },
       {
         id: "deltaSats",
-        header: "Amount ABC",
+        header: "Amount XEC",
         adjust: true,
         template: function(row) {
-          return renderSats(row.deltaSats) + ' ABC';
+          return renderSats(row.deltaSats) + ' XEC';
         },
       },
       {

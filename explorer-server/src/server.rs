@@ -18,11 +18,11 @@ pub struct Server {
 
 impl Server {
     pub async fn setup(indexer: Arc<Indexer>) -> Result<Self> {
-        let satoshi_addr_prefix = "bitcoincash";
+        let satoshi_addr_prefix = "ecash";
         Ok(Server {
             indexer,
             satoshi_addr_prefix,
-            tokens_addr_prefix: "simpleledger",
+            tokens_addr_prefix: "etoken",
         })
     }
 }
@@ -464,8 +464,8 @@ impl Server {
         let tx_hash = from_le_hex(tx_hash_str)?;
         let tx = self.indexer.tx(&tx_hash).await?;
         let title: Cow<str> = match tx.tx_meta.variant {
-            TxMetaVariant::SatsOnly => "ABC Transaction".into(),
-            TxMetaVariant::InvalidSlp {..} => "Invalid SLP Transaction".into(),
+            TxMetaVariant::SatsOnly => "eCash Transaction".into(),
+            TxMetaVariant::InvalidSlp {..} => "Invalid eToken Transaction".into(),
             TxMetaVariant::Slp {..} => {
                 let token_meta = tx.token_meta.as_ref().ok_or_else(|| anyhow!("No token meta"))?;
                 format!("{} Token Transaction", String::from_utf8_lossy(&token_meta.token_ticker)).into()
@@ -556,11 +556,15 @@ impl Server {
                                     }
                                     tr {
                                         td { "Total Input" }
-                                        td { (render_sats(tx.tx_meta.sats_input, false)) " ABC" }
+                                        td { (render_sats(tx.tx_meta.sats_input)) " XEC" }
                                     }
                                     tr {
                                         td { "Total Output" }
-                                        td { (render_sats(tx.tx_meta.sats_output, false)) " ABC" }
+                                        td { (render_sats(tx.tx_meta.sats_output)) " XEC" }
+                                    }
+                                    tr {
+                                        td { "Fee" }
+                                        td { (render_sats((tx.tx_meta.sats_input - tx.tx_meta.sats_output).max(0))) " XEC" }
                                     }
                                     tr {
                                         td { "Version" }
@@ -844,8 +848,8 @@ impl Server {
                                 }
                                 div {
                                     small {
-                                        (render_sats(tx_output.value, true))
-                                        " ABC"
+                                        (render_sats(tx_output.value))
+                                        " XEC"
                                     }
                                 }
                             }
@@ -853,8 +857,8 @@ impl Server {
                                 .ui.green.horizontal.label { "Mint baton" }
                             }
                             _ => {
-                                (render_sats(tx_output.value, true))
-                                " ABC"
+                                (render_sats(tx_output.value))
+                                " XEC"
                             }
                         }
                     }
@@ -941,14 +945,14 @@ impl Server {
                                 }
                                 div {
                                     small {
-                                        (render_sats(tx_input.value, true))
-                                        " ABC"
+                                        (render_sats(tx_input.value))
+                                        " XEC"
                                     }
                                 }
                             }
                             _ => {
-                                (render_sats(tx_input.value, true))
-                                " ABC"
+                                (render_sats(tx_input.value))
+                                " XEC"
                             }
                         }
                     }
@@ -1104,14 +1108,14 @@ impl Server {
                                                 .balance {
                                                     h4 { "Balance" }
                                                     h1 {
-                                                        (render_sats(balance.sats_amount, true)) " ABC"
+                                                        (render_sats(balance.sats_amount)) " XEC"
                                                         a.show-coins onclick="$('#sats-coins').toggle(); loadSatsTable();" {
                                                             "Show Coins " i.icon.chevron.circle.down {}
                                                         }
                                                     }
                                                     @if token_dust > 0 {
                                                         h3 {
-                                                            "+" (render_sats(token_dust, true)) " ABC in token dust"
+                                                            "+" (render_sats(token_dust)) " XEC in token dust"
                                                         }
                                                     }
                                                     @match address_num_txs {
@@ -1144,7 +1148,7 @@ impl Server {
                                                             $('#qr-code-img').attr('src', '/address-qr/" (sats_address.cash_addr()) "');\
                                                             $('.qr-kind').attr('id', 'selected-address-1');\
                                                         "} {
-                                                            "ABC Address"
+                                                            "XEC Address"
                                                         }
                                                     }
                                                     .address2 {
@@ -1152,7 +1156,7 @@ impl Server {
                                                             $('#qr-code-img').attr('src', '/address-qr/" (token_address.cash_addr()) "');\
                                                             $('.qr-kind').attr('id', 'selected-address-2');\
                                                         "} {
-                                                            "SLP Address"
+                                                            "eToken Address"
                                                         }
                                                     }
                                                     .address3 {
@@ -1184,8 +1188,8 @@ impl Server {
                                             (PreEscaped(&token.token_name))
                                         }
                                         td {
-                                            "+" (render_sats(balance.sats_amount, false))
-                                            " ABC dust"
+                                            "+" (render_sats(balance.sats_amount))
+                                            " XEC dust"
                                             a onclick={"$('#token-coins-" (balance_idx) "').toggle(); loadTokenTable(" (balance_idx) ")"} {
                                                 " ("
                                                 (render_integer(balance.utxos.len() as u64))
@@ -1292,10 +1296,10 @@ impl Server {
                     }
                 }
                 .ui.right.floated.dropdown.item href="#" {
-                    "Bitcoin ABC"
+                    "eCash"
                     // i.dropdown.icon {}
                     .menu {
-                        .item { "Bitcoin ABC" }
+                        .item { "eCash" }
                     }
                 }
             }

@@ -32,10 +32,13 @@ pub fn render_integer(int: u64) -> Markup {
     let string = int.to_formatted_string(&Locale::en);
     let parts = string.split(",").collect::<Vec<_>>();
     html! {
-        @for part in parts.iter().take(parts.len() - 1) {
-            span.digit-sep { (part) }
+        @for (idx, part) in parts.iter().enumerate() {
+            @if idx >= 2 {
+                small.digit-sep[idx < parts.len() - 1] { (part) }
+            } @else {
+                span.digit-sep[idx < parts.len() - 1] { (part) }
+            }
         }
-        span { (parts[parts.len() - 1]) }
     }
 }
 
@@ -70,37 +73,21 @@ pub fn render_difficulty(difficulty: f64) -> Markup {
     }
 }
 
-pub fn render_sats(sats: i64, is_precise: bool) -> Markup {
-    let coins = sats as f64 / 100000000.0;
-    let fmt = format!("{:.8}", coins);
+pub fn render_sats(sats: i64) -> Markup {
+    let coins = sats as f64 / 100.0;
+    let fmt = format!("{:.2}", coins);
     let mut parts = fmt.split(".");
     let integer_part: u64 = parts.next().unwrap().parse().unwrap();
     let fract_part = parts.next().unwrap();
-    let fract1 = &fract_part[0..3];
-    let fract2 = &fract_part[3..6];
-    let fract3 = &fract_part[6..];
-    let z1 = fract1 == "000";
-    let z2 = fract2 == "000";
-    let z3 = fract3 == "00";
-    fn render_fract(is_zero: bool, is_small: bool, fract: &str) -> Markup {
-        if is_small {
-            html! { small.zeros[is_zero].digit-sep { (fract) } }
-        } else {
-            html! { span.zeros[is_zero].digit-sep { (fract) } }
-        }
-    }
-    let rendered_fract1 = render_fract(z1 && z2 && z3, false, fract1);
-    let rendered_fract2 = render_fract(z2 && z3, true, fract2);
-    let rendered_fract3 = render_fract(z3, true, fract3);
-    html! {
-        (render_integer(integer_part))
-        "."
-        (rendered_fract1)
-        @if coins < 10_000.0 || is_precise {
-            (rendered_fract2)
-        }
-        @if coins < 100.0 || is_precise {
-            (rendered_fract3)
+    if fract_part == "00" {
+        render_integer(integer_part)
+    } else {
+        html! {
+            (render_integer(integer_part))
+            "."
+            small {
+                (fract_part)
+            }
         }
     }
 }
