@@ -234,6 +234,21 @@ struct JsonTxs {
     token_indices: HashMap<Vec<u8>, usize>,
 }
 
+impl JsonToken {
+    fn from_token_meta(token_id: &[u8], token_meta: TokenMeta) -> Self {
+        let token_ticker = String::from_utf8_lossy(&token_meta.token_ticker);
+        let token_name = String::from_utf8_lossy(&token_meta.token_name);
+        JsonToken {
+            token_id: hex::encode(token_id),
+            token_type: token_meta.token_type,
+            token_ticker: html! { (token_ticker) }.into_string(),
+            token_name: html! { (token_name) }.into_string(),
+            decimals: token_meta.decimals,
+            group_id: token_meta.group_id.map(|group_id| hex::encode(&group_id)),
+        }
+    }
+}
+
 impl Server {
     pub async fn data_block_txs(&self, block_hash: &str) -> Result<impl Reply> {
         let block_hash = from_le_hex(block_hash)?;
@@ -324,17 +339,7 @@ impl Server {
         let mut token_data = tokens.into_iter().zip(&token_indices).collect::<Vec<_>>();
         token_data.sort_unstable_by_key(|&(_, (_, idx))| idx);
         let json_tokens = token_data.into_iter().filter_map(|(token_meta, (token_id, _))| {
-            let token_meta = token_meta?;
-            let token_ticker = String::from_utf8_lossy(&token_meta.token_ticker);
-            let token_name = String::from_utf8_lossy(&token_meta.token_name);
-            Some(JsonToken {
-                token_id: hex::encode(token_id),
-                token_type: token_meta.token_type,
-                token_ticker: html! { (token_ticker) }.into_string(),
-                token_name: html! { (token_name) }.into_string(),
-                decimals: token_meta.decimals,
-                group_id: token_meta.group_id.map(|group_id| hex::encode(&group_id)),
-            })
+            Some(JsonToken::from_token_meta(token_id, token_meta?))
         }).collect::<Vec<_>>();
         Ok(JsonTxs { tokens: json_tokens, txs: json_txs, token_indices })
     }
@@ -995,7 +1000,7 @@ impl Server {
         let curated_page_offsets = &[
             1, 2, 3, 4, 5, 10, 20, 100, 1000, 2000,
         ];
-        let json_txs = self.json_txs(
+        let mut json_txs = self.json_txs(
             address_txs
                 .iter()
                 .map(|(tx_hash, addr_tx, tx_meta)| {
@@ -1022,6 +1027,16 @@ impl Server {
             utxos: Vec<JsonUtxo>,
         }
         let AddressBalance { balances, utxos } = balance;
+        for (token_id, _) in &utxos {
+            if let Some(token_id) = &token_id {
+                if !json_txs.token_indices.contains_key(token_id.as_ref()) {
+                    if let Some(token_meta) = self.indexer.db().token_meta(token_id)? {
+                        json_txs.token_indices.insert(token_id.to_vec(), json_txs.tokens.len());
+                        json_txs.tokens.push(JsonToken::from_token_meta(token_id, token_meta));
+                    }
+                }
+            }
+        }
         let token_dust = balances.iter()
             .filter_map(|(token_id, balance)| token_id.and(Some(balance.0)))
             .sum::<i64>();
