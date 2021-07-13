@@ -1069,10 +1069,9 @@ impl Server {
         });
         let json_balances = json_balances.into_iter().map(|(_, balance)| balance).collect::<Vec<_>>();
 
-        let encoded_txs = serde_json::to_string(&json_txs.txs)?;
-        let encoded_tokens = serde_json::to_string(&json_txs.tokens)?;
-        let encoded_balances = serde_json::to_string(&json_balances)?;
-
+        let encoded_txs = serde_json::to_string(&json_txs.txs)?.replace("'", r"\'");
+        let encoded_tokens = serde_json::to_string(&json_txs.tokens)?.replace("'", r"\'");
+        let encoded_balances = serde_json::to_string(&json_balances)?.replace("'", r"\'");
         let markup = html! {
             (DOCTYPE)
             head {
