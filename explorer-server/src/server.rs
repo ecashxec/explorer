@@ -644,11 +644,11 @@ impl Server {
                     SlpV1Genesis => "GENESIS",
                     SlpV1Mint => "MINT",
                     SlpV1Send => "SEND",
-                    SlpNft1GroupGenesis => "NFT1 Group GENESIS",
-                    SlpNft1GroupMint => "NFT1 MINT",
-                    SlpNft1GroupSend => "NFT1 Group SEND",
-                    SlpNft1UniqueChildGenesis => "NFT1 Child GENESIS",
-                    SlpNft1UniqueChildSend => "NFT1 Child SEND",
+                    SlpV1Nft1GroupGenesis => "NFT1 Group GENESIS",
+                    SlpV1Nft1GroupMint => "NFT1 MINT",
+                    SlpV1Nft1GroupSend => "NFT1 Group SEND",
+                    SlpV1Nft1UniqueChildGenesis => "NFT1 Child GENESIS",
+                    SlpV1Nft1UniqueChildSend => "NFT1 Child SEND",
                 };
                 h2 {
                     a href={"/tx/" (hex::encode(&token_id))} { (ticker) }

@@ -39,11 +39,11 @@ pub enum SlpAction {
     SlpV1Genesis = 1,
     SlpV1Mint = 2,
     SlpV1Send = 3,
-    SlpNft1GroupGenesis = 4,
-    SlpNft1GroupMint = 5,
-    SlpNft1GroupSend = 6,
-    SlpNft1UniqueChildGenesis = 7,
-    SlpNft1UniqueChildSend = 8,
+    SlpV1Nft1GroupGenesis = 4,
+    SlpV1Nft1GroupMint = 5,
+    SlpV1Nft1GroupSend = 6,
+    SlpV1Nft1UniqueChildGenesis = 7,
+    SlpV1Nft1UniqueChildSend = 8,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

@@ -559,11 +559,11 @@ impl IndexDb {
                             SlpV1Genesis => SlpAction::SlpV1Genesis,
                             SlpV1Mint => SlpAction::SlpV1Mint,
                             SlpV1Send => SlpAction::SlpV1Send,
-                            SlpNft1GroupGenesis => SlpAction::SlpNft1GroupGenesis,
-                            SlpNft1GroupMint => SlpAction::SlpNft1GroupMint,
-                            SlpNft1GroupSend => SlpAction::SlpNft1GroupSend,
-                            SlpNft1UniqueChildGenesis => SlpAction::SlpNft1UniqueChildGenesis,
-                            SlpNft1UniqueChildSend => SlpAction::SlpNft1UniqueChildSend,
+                            SlpV1Nft1GroupGenesis => SlpAction::SlpV1Nft1GroupGenesis,
+                            SlpV1Nft1GroupMint => SlpAction::SlpV1Nft1GroupMint,
+                            SlpV1Nft1GroupSend => SlpAction::SlpV1Nft1GroupSend,
+                            SlpV1Nft1UniqueChildGenesis => SlpAction::SlpV1Nft1UniqueChildGenesis,
+                            SlpV1Nft1UniqueChildSend => SlpAction::SlpV1Nft1UniqueChildSend,
                         }
                     },
                     token_input: input_sum,
@@ -742,7 +742,7 @@ impl IndexDb {
                     group_id: None,
                 }
             },
-            (SlpAction::SlpNft1GroupGenesis, Some(TxMetadata::V1Genesis(genesis))) => {
+            (SlpAction::SlpV1Nft1GroupGenesis, Some(TxMetadata::V1Genesis(genesis))) => {
                 TokenMeta {
                     token_type: 0x81,
                     token_ticker: genesis.ticker.clone(),
@@ -753,7 +753,7 @@ impl IndexDb {
                     group_id: None,
                 }
             },
-            (SlpAction::SlpNft1UniqueChildGenesis, Some(TxMetadata::Nft1ChildGenesis(genesis))) => {
+            (SlpAction::SlpV1Nft1UniqueChildGenesis, Some(TxMetadata::V1Nft1ChildGenesis(genesis))) => {
                 TokenMeta {
                     token_type: 0x41,
                     token_ticker: genesis.ticker.clone(),
