@@ -488,6 +488,11 @@ impl Server {
                 format!("{} Token Transaction", String::from_utf8_lossy(&token_meta.token_ticker)).into()
             }
         };
+        let token_hash_str = match tx.tx_meta.variant {
+            TxMetaVariant::SatsOnly => None,
+            TxMetaVariant::Slp { token_id, .. } => Some(hex::encode(&token_id)),
+            TxMetaVariant::InvalidSlp { ref token_id, .. } => Some(hex::encode(&token_id))
+        };
         let block_meta = self.indexer.db().block_meta(&tx.transaction.block_hash)?;
         let best_height = self.indexer.db().last_block_height()?;
         let confirmations = match &block_meta {
@@ -506,17 +511,28 @@ impl Server {
 
                 .ui.container {
                     h1 { (title) }
-                    #tx-hash.ui.segment {
-                        strong { "Transaction ID: " }
-                        span.hex { (tx_hash_str) }
-                        @if tx.tx_meta.is_coinbase {
-                            .ui.green.horizontal.label { "Coinbase" }
-                        }
-                        .ui.slider.checkbox style="float: right;" {
-                            input
-                                type="checkbox"
-                                onclick="$('#raw-hex').toggle()";
-                            label { "Show raw hex" }
+                    #tx-hash.ui.segment.tx-details {
+                        table.tx-hash-table.ui.very.basic.table {
+                            tbody {
+                                tr {
+                                    td.no-padding[token_hash_str == ""] { strong { "Transaction ID" } }
+                                    td.no-padding[token_hash_str == ""] {
+                                        span.hex { (tx_hash_str) }
+
+                                        @if tx.tx_meta.is_coinbase {
+                                            .ui.green.horizontal.label { "Coinbase" }
+                                        }
+                                    }
+                                }
+                                @if let Some(hash) = token_hash_str {
+                                    tr {
+                                        td { strong { "Token ID" } }
+                                        td {
+                                            span.hex { (hash) }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                     #raw-hex.ui.segment style="display: none;" {
@@ -525,79 +541,92 @@ impl Server {
                             (hex::encode(&tx.raw_tx))
                         }
                     }
-                    .ui.grid {
-                        .six.wide.column {
-                            table.ui.table {
-                                tbody {
-                                    tr {
-                                        td { "Age" }
-                                        td { (HumanTime::from(timestamp)) }
-                                    }
-                                    tr {
-                                        td { "Mined on" }
-                                        td {
-                                            @match &block_meta {
-                                                Some(block_meta) => (self.render_timestamp(block_meta.timestamp)),
-                                                None => "Not mined yet",
-                                            }
+
+                    h2 { "Details" }
+                    .ui.grid.segment.tx-details {
+                        table.tx-details-table.ui.very.basic.table {
+                            tbody {
+                                tr {
+                                    td { "Age" }
+                                    td { (HumanTime::from(timestamp)) }
+                                }
+                                tr {
+                                    td { "Block" }
+                                    td {
+                                        @match &block_meta {
+                                            Some(_) => {
+                                                a href={"/block/" (to_le_hex(&tx.transaction.block_hash))} {
+                                                    (render_integer(tx.transaction.block_height as u64))
+                                                }
+                                                " ("
+                                                (render_integer(confirmations as u64))
+                                                " confirmations)"
+                                            },
+                                            None => "Not mined yet",
                                         }
                                     }
-                                    tr {
-                                        td { "Unix Timestamp" }
-                                        td {
-                                            @match &block_meta {
-                                                Some(block_meta) => (render_integer(block_meta.timestamp as u64)),
-                                                None => "Not mined yet",
-                                            }
+                                }
+                                tr {
+                                    td { "Unix Timestamp" }
+                                    td {
+                                        @match &block_meta {
+                                            Some(block_meta) => (render_integer(block_meta.timestamp as u64)),
+                                            None => "Not mined yet",
                                         }
                                     }
-                                    tr {
-                                        td { "Block" }
-                                        td {
-                                            @match &block_meta {
-                                                Some(_) => {
-                                                    a href={"/block/" (to_le_hex(&tx.transaction.block_hash))} {
-                                                        (render_integer(tx.transaction.block_height as u64))
-                                                    }
-                                                    " ("
-                                                    (render_integer(confirmations as u64))
-                                                    " confirmations)"
-                                                },
-                                                None => "Not mined yet",
-                                            }
-                                        }
-                                    }
-                                    tr {
-                                        td { "Size" }
-                                        td { (render_byte_size(tx.transaction.size as u64, true)) }
-                                    }
-                                    tr {
-                                        td { "Total Input" }
-                                        td { (render_sats(tx.tx_meta.sats_input)) " XEC" }
-                                    }
-                                    tr {
-                                        td { "Total Output" }
-                                        td { (render_sats(tx.tx_meta.sats_output)) " XEC" }
-                                    }
-                                    tr {
-                                        td { "Fee" }
-                                        td { (render_sats((tx.tx_meta.sats_input - tx.tx_meta.sats_output).max(0))) " XEC" }
-                                    }
-                                    tr {
-                                        td { "Version" }
-                                        td { (tx.transaction.version) }
-                                    }
-                                    tr {
-                                        td { "Locktime" }
-                                        td { (render_integer(tx.transaction.lock_time as u64)) }
-                                    }
+                                }
+                                tr {
+                                    td { "Size" }
+                                    td { (render_byte_size(tx.transaction.size as u64, true)) }
+                                }
+                                tr {
+                                    td { "Locktime" }
+                                    td { (render_integer(tx.transaction.lock_time as u64)) }
                                 }
                             }
                         }
-                        .ten.wide.column {
-                            (self.render_tx_variant(&tx.tx_meta.variant, &tx.token_meta))
+                        .ui.vertical.divider.tx-details-table__divider {}
+                        table.tx-details-table.ui.very.basic.table {
+                            tbody {
+                                tr {
+                                    td { "Mined on" }
+                                    td {
+                                        @match &block_meta {
+                                            Some(block_meta) => (self.render_timestamp(block_meta.timestamp)),
+                                            None => "Not mined yet",
+                                        }
+                                    }
+                                }
+                                tr {
+                                    td { "Total Input" }
+                                    td { (render_sats(tx.tx_meta.sats_input)) " XEC" }
+                                }
+                                tr {
+                                    td { "Total Output" }
+                                    td { (render_sats(tx.tx_meta.sats_output)) " XEC" }
+                                }
+                                tr {
+                                    td { "Fee" }
+                                    td { (render_sats((tx.tx_meta.sats_input - tx.tx_meta.sats_output).max(0))) " XEC" }
+                                }
+                                tr {
+                                    td { "Version" }
+                                    td { (tx.transaction.version) }
+                                }
+                            }
                         }
                     }
+
+                    @match self.render_token_info(&tx.tx_meta.variant, &tx.token_meta) {
+                        Some(token_info_markup) => {
+                            (self.render_token_info_title(&tx.tx_meta.variant, &tx.token_meta))
+                            .ui.grid.segment.tx-details {
+                                (token_info_markup)
+                            }
+                        },
+                        None => {},
+                    }
+
                     .ui.grid {
                         .eight.wide.column {
                             h2 { "Inputs" }
@@ -644,14 +673,13 @@ impl Server {
         Ok(warp::reply::html(markup.into_string()))
     }
 
-    fn render_tx_variant(&self, variant: &TxMetaVariant, token_meta: &Option<TokenMeta>) -> Markup {
+    fn render_token_info_title(&self, variant: &TxMetaVariant, token_meta: &Option<TokenMeta>) -> Markup {
         use SlpAction::*;
         match (variant, token_meta) {
             (
-                TxMetaVariant::Slp { token_id, action, token_input, token_output },
-                Some(token_meta),
+                TxMetaVariant::Slp { action, .. },
+                Some(_),
             ) => html! {
-                @let ticker = String::from_utf8_lossy(&token_meta.token_ticker);
                 @let action_str = match action {
                     SlpV1Genesis => "GENESIS",
                     SlpV1Mint => "MINT",
@@ -663,18 +691,63 @@ impl Server {
                     SlpV1Nft1UniqueChildSend => "NFT1 Child SEND",
                 };
                 h2 {
-                    a href={"/tx/" (hex::encode(&token_id))} { (ticker) }
-                    " Token " (action_str) " Transaction"
+                    "Token Details (" (action_str) " Transaction)"
                 }
-                table.ui.table {
+            },
+            (
+                TxMetaVariant::InvalidSlp { .. },
+                Some(_)
+            ) => html! {
+                h2 {
+                    "Token Details (Invalid Transaction)"
+                }
+            },
+            (
+                TxMetaVariant::InvalidSlp { .. },
+                None
+            ) => html! {
+                h2 {
+                    "Token Details (Invalid Transaction; Unknown Token)"
+                }
+            },
+            _ => html! {},
+        }
+    }
+
+    fn render_token_info(&self, variant: &TxMetaVariant, token_meta: &Option<TokenMeta>) -> Option<Markup> {
+        use SlpAction::*;
+        match (variant, token_meta) {
+            (
+                TxMetaVariant::Slp { token_id, action, token_input, token_output },
+                Some(token_meta),
+            ) => Some(html! {
+                @let ticker = String::from_utf8_lossy(&token_meta.token_ticker);
+                @let action_str = match action {
+                    SlpV1Genesis => "GENESIS",
+                    SlpV1Mint => "MINT",
+                    SlpV1Send => "SEND",
+                    SlpV1Nft1GroupGenesis => "NFT1 Group GENESIS",
+                    SlpV1Nft1GroupMint => "NFT1 MINT",
+                    SlpV1Nft1GroupSend => "NFT1 Group SEND",
+                    SlpV1Nft1UniqueChildGenesis => "NFT1 Child GENESIS",
+                    SlpV1Nft1UniqueChildSend => "NFT1 Child SEND",
+                };
+                table.tx-details-table.ui.very.basic.table {
                     tbody {
                         tr {
-                            td { "Token ID" }
-                            td { .hex { (hex::encode(&token_id)) } }
+                            td { "Token Ticker" }
+                            td { (ticker) }
                         }
                         tr {
                             td { "Token Name" }
-                            td { (String::from_utf8_lossy(&token_meta.token_name)) }
+                            td {
+                                (String::from_utf8_lossy(&token_meta.token_name))
+                                @if action_str != "GENESIS" {
+                                    " ("
+                                    a href={"/tx/" (hex::encode(&token_id))} { "GENESIS" }
+                                    ")"
+                                }
+                            }
                         }
                         tr {
                             td { "Token Type" }
@@ -709,6 +782,11 @@ impl Server {
                             td { "Transaction Type" }
                             td { (action_str) }
                         }
+                    }
+                }
+                .ui.vertical.divider.tx-details-table__divider {}
+                table.tx-details-table.ui.very.basic.table {
+                    tbody {
                         tr {
                             td { "Token Output" }
                             td {
@@ -743,22 +821,17 @@ impl Server {
                         }
                     }
                 }
-            },
+            }),
             (
-                TxMetaVariant::InvalidSlp { ref token_id, token_input },
+                TxMetaVariant::InvalidSlp { token_input, .. },
                 Some(token_meta)
-            ) => html! {
+            ) => Some(html! {
                 @let ticker = String::from_utf8_lossy(&token_meta.token_ticker);
-                h2 {
-                    "Invalid Token Transaction ("
-                    (ticker)
-                    ")"
-                }
-                table.ui.table {
+                table.ui.very.basic.table {
                     tbody {
                         tr {
-                            td { "Token ID" }
-                            td { .hex { (hex::encode(&token_id)) } }
+                            td { "Token Ticker" }
+                            td { (ticker) }
                         }
                         tr {
                             td { "Token Name" }
@@ -772,19 +845,16 @@ impl Server {
                         }
                     }
                 }
-            },
+            }),
             (
-                TxMetaVariant::InvalidSlp { token_id, token_input },
+                TxMetaVariant::InvalidSlp { token_input, .. },
                 None
-            ) => html! {
-                h2 {
-                    "Invalid Token Transaction (unknown token)"
-                }
-                table.ui.table {
+            ) => Some(html! {
+                table.ui.very.basic.table {
                     tbody {
                         tr {
-                            td { "Token ID" }
-                            td { .hex { (hex::encode(&token_id)) } }
+                            td { "Token Ticker" }
+                            td { "Unknown" }
                         }
                         tr {
                             td { "Tokens burned" }
@@ -794,8 +864,8 @@ impl Server {
                         }
                     }
                 }
-            },
-            _ => html! {},
+            }),
+            _ => None,
         }
     }
 
