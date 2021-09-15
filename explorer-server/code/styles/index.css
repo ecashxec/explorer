@@ -260,6 +260,16 @@ h1, h2, h3, h4, h5 {
   }
 }
 
+.tx-header__title {
+  width: fit-content;
+  float: left;
+}
+
+.tx-header__label {
+  margin: 5px 0 0 5px!important;
+  float: left;
+}
+
 .tx-details {
   justify-content: space-between;
 }
@@ -303,5 +313,29 @@ table.tx-details-table tr:last-child td {
 
 .ui.vertical.divider.tx-details-table__divider:after,
 .ui.vertical.divider.tx-details-table__divider:before {
+  height: 100%;
+}
+
+.tx-transaction__toggle-wrapper {
+  display: flex;
+  height: 100%;
+  flex-direction: row;
+  justify-content: flex-end;
+}
+
+.ui.slider.checkbox.tx-transaction__toggle {
+  align-self: center;
+}
+
+.tx-transaction__arrow-separator {
+  display: flex;
+  flex-direction: column;
+  align-content: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  opacity: 0.2;
+  align-self: center;
+  margin: 0 auto;
   height: 100%;
 }

@@ -510,19 +510,31 @@ impl Server {
                 (self.toolbar())
 
                 .ui.container {
-                    h1 { (title) }
+                    .ui.grid {
+                        .ten.wide.column {
+                            h1.tx-header__title { (title) }
+
+                            @if tx.tx_meta.is_coinbase {
+                                .tx-header__label.ui.green.label { "Coinbase" }
+                            }
+                        }
+                        .six.wide.column {
+                            .tx-transaction__toggle-wrapper {
+                                .ui.slider.checkbox.tx-transaction__toggle {
+                                    input
+                                        type="checkbox"
+                                        onclick="$('#raw-hex').toggle()";
+                                    label { "Show raw hex" }
+                                }
+                            }
+                        }
+                    }
                     #tx-hash.ui.segment.tx-details {
                         table.tx-hash-table.ui.very.basic.table {
                             tbody {
                                 tr {
-                                    td.no-padding[token_hash_str == ""] { strong { "Transaction ID" } }
-                                    td.no-padding[token_hash_str == ""] {
-                                        span.hex { (tx_hash_str) }
-
-                                        @if tx.tx_meta.is_coinbase {
-                                            .ui.green.horizontal.label { "Coinbase" }
-                                        }
-                                    }
+                                    td.no-padding[token_hash_str.is_none()] { strong { "Transaction ID" } }
+                                    td.no-padding[token_hash_str.is_none()] { span.hex { (tx_hash_str) } }
                                 }
                                 @if let Some(hash) = token_hash_str {
                                     tr {
@@ -628,8 +640,24 @@ impl Server {
                     }
 
                     .ui.grid {
-                        .eight.wide.column {
-                            h2 { "Inputs" }
+                        .ten.wide.column {
+                            h2 { "Transaction" }
+                        }
+                        .six.wide.column {
+                            .tx-transaction__toggle-wrapper {
+                                .ui.slider.checkbox.tx-transaction__toggle {
+                                    input
+                                        type="checkbox"
+                                        onclick="toggleTransactionScriptData()";
+                                    label { "Show all scripts" }
+                                }
+                            }
+                        }
+                    }
+                    .ui.grid.segment {
+                        .seven.wide.column {
+                            h4 { "Inputs" }
+
                             (PreEscaped(
                                 r#"<script type="text/javascript">
                                     var detailsOpen = {};
@@ -646,7 +674,7 @@ impl Server {
                                     }}
                                 </script>"#,
                             ))
-                            table#inputs.ui.table {
+                            table#inputs.ui.very.basic.table {
                                 tbody {
                                     @for input in &tx.transaction.inputs {
                                         (self.render_input(input, &tx.token_meta))
@@ -654,9 +682,14 @@ impl Server {
                                 }
                             }
                         }
-                        .eight.wide.column {
-                            h2 { "Outputs" }
-                            table#outputs.ui.table {
+                        .two.wide.column {
+                            .tx-transaction__arrow-separator {
+                                i.big.icon.arrow.right {}
+                            }
+                        }
+                        .seven.wide.column {
+                            h4 { "Outputs" }
+                            table#outputs.ui.very.basic.table {
                                 tbody {
                                     @for output in &tx.transaction.outputs {
                                         (self.render_output(output, &tx.token_meta, &tx.tx_out_spends))
@@ -889,11 +922,10 @@ impl Server {
                     @match tx_out_spends.get(&tx_output.index) {
                         Some(Some(tx_out_spend)) => {
                             a href={"/tx/" (to_le_hex(&tx_out_spend.by_tx_hash))} {
-                                img src={"/assets/spend.svg"} {}
+                                i.icon.sign.out {}
                             }
                         }
                         Some(None) => {
-                            img src={"/assets/utxo.svg"} {}
                         }
                         None => {
                             @if let Destination::Nulldata(_) = &destination {
@@ -950,21 +982,16 @@ impl Server {
                         }
                     }
                 }
-                td.toggle {
-                    i.icon.chevron.circle.down
-                        id={"output-details-toggle-" (tx_output.index)}
-                        onclick={(format!("toggleDetails('output', {0})", tx_output.index))} {}
-                }
             }
-            tr id={"output-details-" (tx_output.index)} style="display: none;" {
+            tr.tx-transaction__script-data.hidden {
                 td colspan="1" {}
                 td colspan="5" {
                     p {
-                        strong { "Output script hex" }
+                        strong { "Script Hex" }
                         .hex { (hex::encode(&tx_output.pubkey_script)) }
                     }
                     p {
-                        strong { "Output script decoded" }
+                        strong { "Script Decoded" }
                         .hex { (output_script) }
                     }
                 }
@@ -995,7 +1022,7 @@ impl Server {
                 } @else {
                     td {
                         a href={"/tx/" (to_le_hex(&outpoint.hash))} {
-                            img src={"/assets/input.svg"} {}
+                            i.horizontally.flipped.icon.sign.out {}
                         }
                     }
                     td {
@@ -1044,21 +1071,16 @@ impl Server {
                         }
                     }
                 }
-                td.toggle {
-                    i.icon.chevron.circle.down
-                        id={"input-details-toggle-" (tx_input.index)}
-                        onclick={(format!("toggleDetails('input', {0})", tx_input.index))} {}
-                }
             }
-            tr id={"input-details-" (tx_input.index)} style="display: none;" {
+            tr.tx-transaction__script-data.hidden {
                 td colspan="1" {}
                 td colspan="5" {
                     p {
-                        strong { "Input script hex" }
+                        strong { "Script Hex" }
                         .hex { (hex::encode(&tx_input.signature_script)) }
                     }
                     p {
-                        strong { "Input script decoded" }
+                        strong { "Script Decoded" }
                         .hex { (input_script) }
                     }
                 }
