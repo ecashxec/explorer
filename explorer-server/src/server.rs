@@ -656,7 +656,7 @@ impl Server {
                     }
                     .ui.grid.segment {
                         .seven.wide.column {
-                            h4 { "Inputs" }
+                            h4 { "Inputs (" (&tx.transaction.inputs.len()) ")" }
 
                             (PreEscaped(
                                 r#"<script type="text/javascript">
@@ -688,7 +688,8 @@ impl Server {
                             }
                         }
                         .seven.wide.column {
-                            h4 { "Outputs" }
+                            h4 { "Outputs (" (&tx.transaction.outputs.len()) ")" }
+
                             table#outputs.ui.very.basic.table {
                                 tbody {
                                     @for output in &tx.transaction.outputs {
