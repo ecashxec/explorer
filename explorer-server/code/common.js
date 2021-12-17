@@ -1,3 +1,6 @@
+const DEFAULT_ROWS_PER_PAGE = 100;
+
+
 var tzOffset;
 
 {
@@ -96,7 +99,7 @@ function searchButton() {
 
 function toggleTransactionScriptData() {
   $('.tx-transaction__script-data').each(function () {
-    $(this).toggleClass('hidden');
+    $(this).toggleClass('display-none');
   });
 }
 
@@ -112,6 +115,12 @@ const findClosest = (haystack, needle) => (
   ))
 );
 
+const scrollToBottom = () => {
+  const pageHeight = $(document).height()-$(window).height();
+  $("html, body").animate({ scrollTop: pageHeight - 50 }, 250);
+};
+
+
 (function(state, $) {
   const DEFAULT_PAGE = 1;
   const DEFAULT_ROWS_PER_PAGE = 100;
@@ -122,7 +131,7 @@ const findClosest = (haystack, needle) => (
     return isNaN(parsedValue) ? fallback : Math.max(parsedValue, 1);
   };
 
-  state.getBlockHeight = () => $('#pagination').data('last-block-height');
+  state.getPaginationTotalEntries = () => $('#pagination').data('total-entries');
 
   state.getParameters = () => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -131,7 +140,7 @@ const findClosest = (haystack, needle) => (
     const rows = validatePaginationInts(urlParams.get('rows'), DEFAULT_ROWS_PER_PAGE);
     const order = urlParams.get('order') || DEFAULT_ORDER;
     const start = parseInt(urlParams.get('start')) || 0;
-    const end = parseInt(urlParams.get('end')) || state.getBlockHeight();
+    const end = parseInt(urlParams.get('end')) || state.getPaginationTotalEntries();
 
     return { page, humanPage, rows, order, start, end };
   }
@@ -225,7 +234,7 @@ const findClosest = (haystack, needle) => (
       const value = currentPage - currentIncrement
       const precision = String(value).length - 1
 
-      if (currentIncrement >= 10) {
+      if (currentIncrement >= 10 && precision) {
         pageArray.push(parseFloat(value.toPrecision(precision)));
       } else {
         pageArray.push(value);
@@ -246,7 +255,7 @@ const findClosest = (haystack, needle) => (
 
       const precision = String(value).length - 1
 
-      if (currentIncrement >= 10) {
+      if (currentIncrement >= 10 && precision) {
         pageArray.push(parseFloat(value.toPrecision(precision)));
       } else {
         pageArray.push(value);
@@ -259,19 +268,30 @@ const findClosest = (haystack, needle) => (
 
   pagination.generatePaginationUIParams = () => {
     const { humanPage: currentPage, rows } = window.state.getParameters();
-    const blockHeight = getBlockHeight();
-    const lastPage = Math.ceil(blockHeight / rows);
+    const totalEntries = window.state.getPaginationTotalEntries();
+    const lastPage = Math.ceil(totalEntries / rows);
+
+    if (lastPage === 1) {
+      return {};
+    }
 
     const slots = determinePaginationSlots(lastPage);
 
     const pageArray = generatePaginationArray(currentPage, lastPage, slots)
     pageArray.unshift(1)
-    pageArray.push(lastPage)
+
+    if (lastPage !== pageArray.slice(-1)[0]) {
+      pageArray.push(lastPage)
+    }
 
     return { currentPage, pageArray };
   };
 
   pagination.generatePaginationUI = (currentPage, pageArray) => {
+    if (!pageArray) {
+      return;
+    }
+
     const path = window.location.pathname;
 
     // DOM building blocks

@@ -24,7 +24,7 @@ pub struct JsonBalance {
     pub utxos: Vec<JsonUtxo>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct JsonToken {
     pub token_id: String,
@@ -35,7 +35,7 @@ pub struct JsonToken {
     pub group_id: Option<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct JsonTx {
     pub tx_hash: String,
@@ -54,6 +54,7 @@ pub struct JsonTx {
     pub token_input: u64,
     pub token_output: u64,
     pub slp_action: Option<SlpAction>,
+    pub token: Option<JsonToken>,
 }
 
 #[derive(Serialize)]

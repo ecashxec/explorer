@@ -1,7 +1,3 @@
-const DEFAULT_PAGE = 1;
-const DEFAULT_ROWS_PER_PAGE = 100;
-const DEFAULT_ORDER = 'desc';
-
 // data table rendering utilities
 const renderInt = (number) => {
   var fmt = Intl.NumberFormat('en-EN').format(number);
@@ -77,11 +73,6 @@ const updateTable = (startPosition, endPosition) => {
 const goToPage = (event, page) => {
   event.preventDefault();
   reRenderPage({ page });
-};
-
-const scrollToBottom = () => {
-  const pageHeight = $(document).height()-$(window).height();
-  $("html, body").animate({ scrollTop: pageHeight - 50 }, 250);
 };
 
 

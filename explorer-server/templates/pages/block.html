@@ -1,12 +1,17 @@
 {% extends "base.html" %}
 
+{% import "components/loader_fullpage.html" as loader %}
+
+{% block body_classes %}overflow-y-scroll{% endblock %}
+{% block footer_classes %}hidden{% endblock %}
+
 {% block content %}
   <div class="ui container">
     <h1>Block #{{ block_meta.height }}</h1>
 
     <div class="ui segment">
       <strong>Hash: </strong>
-      <span class="hex">{{ block_hash_string }}</span>
+      <span id="block-hash" class="hex">{{ block_hash_string }}</span>
     </div>
 
     <div class="ui grid">
@@ -87,15 +92,35 @@
       </div>
     </div>
 
-    <div class="ui segment">
-      <h2 class="ui header">Transactions</h2>
-      <div id="block-txs">
-        <div id="txs-table"></div>
+    <h2 class="ui header block__tx-header">Transactions</h2>
+    {% call loader::render() %}
+    <table id="txs-table" class="block-listing__datatable dataTable compact responsive nowrap no-footer" style="width: 100%">
+      <thead>
+          <tr>
+              <th>ID</th>
+              <th>Size</th>
+              <th>Fee [sats]</th>
+              <th>Inputs</th>
+              <th>Outputs</th>
+              <th>Output Amount</th>
+              <th></th>
+          </tr>
+      </thead>
+      <tbody class="blur">
+      </tbody>
+    </table>
+
+    <div class="ui container">
+      <div id="pagination" class="bottom-pagination" data-total-entries="{{ block_meta.num_txs }}">
+      </div>
+      <div class="block-listing__fixed-nav-icon">
+        <button class="circular ui icon button" onclick="scrollToBottom()">
+          <i class="angle down icon"></i>
+        </button>
       </div>
     </div>
   </div>
 
-  <script type="text/javascript" src="/data/block/{{ block_hash_string }}/dat.js"></script>
   <script type="text/javascript" src="/code/txs.js?hash=80d7734"></script>
   <script type="text/javascript" src="/code/timestamps.js?hash=80d7734"></script>
 {% endblock %}
