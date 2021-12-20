@@ -8,7 +8,7 @@ use chrono_humanize::HumanTime;
 use std::{borrow::Cow, collections::{BTreeSet, HashMap, hash_map::Entry}, convert::{TryInto, TryFrom}, sync::Arc};
 use zerocopy::{AsBytes, byteorder::{I32, U32}};
 
-use crate::{blockchain::{BlockHeader, Destination, destination_from_script, is_coinbase, from_le_hex, to_legacy_address, to_le_hex}, formatting::{render_amount, render_byte_size, render_difficulty, render_integer, render_sats}, grpc::bchrpc, indexdb::{AddressBalance, TxOutSpend}, indexer::Indexer, primitives::{SlpAction, TokenMeta, TxMeta, TxMetaVariant}};
+use crate::{blockchain::{BlockHeader, Destination, destination_from_script, is_coinbase, from_le_hex, to_legacy_address, to_le_hex}, formatting::{render_amount, render_byte_size, render_difficulty, render_integer, render_integer_smallify, render_sats}, grpc::bchrpc, indexdb::{AddressBalance, TxOutSpend}, indexer::Indexer, primitives::{SlpAction, TokenMeta, TxMeta, TxMetaVariant}};
 
 pub struct Server {
     indexer: Arc<Indexer>,
@@ -568,10 +568,10 @@ impl Server {
                                         @match &block_meta {
                                             Some(_) => {
                                                 a href={"/block/" (to_le_hex(&tx.transaction.block_hash))} {
-                                                    (render_integer(tx.transaction.block_height as u64))
+                                                    (render_integer_smallify(tx.transaction.block_height as u64))
                                                 }
                                                 " ("
-                                                (render_integer(confirmations as u64))
+                                                (render_integer_smallify(confirmations as u64))
                                                 " confirmations)"
                                             },
                                             None => "Not mined yet",
@@ -593,7 +593,7 @@ impl Server {
                                 }
                                 tr {
                                     td { "Locktime" }
-                                    td { (render_integer(tx.transaction.lock_time as u64)) }
+                                    td { (render_integer_smallify(tx.transaction.lock_time as u64)) }
                                 }
                             }
                         }
@@ -893,7 +893,7 @@ impl Server {
                         tr {
                             td { "Tokens burned" }
                             td {
-                                (render_integer(*token_input))
+                                (render_integer_smallify(*token_input))
                             }
                         }
                     }
@@ -1311,7 +1311,7 @@ impl Server {
                                             " XEC dust"
                                             a onclick={"$('#token-coins-" (balance_idx) "').toggle(); loadTokenTable(" (balance_idx) ")"} {
                                                 " ("
-                                                (render_integer(balance.utxos.len() as u64))
+                                                (render_integer_smallify(balance.utxos.len() as u64))
                                                 " coins "
                                                 i.icon.chevron.circle.down {}
                                                 ")"
