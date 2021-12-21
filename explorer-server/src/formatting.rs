@@ -6,7 +6,7 @@ pub fn render_byte_size(size: u64, is_long: bool) -> Markup {
         @if is_long {
             small {
                 " ("
-                ((render_integer(size)))
+                ((render_integer_smallify(size)))
                 " B)"
             }
         }
@@ -28,12 +28,26 @@ pub fn render_byte_size(size: u64, is_long: bool) -> Markup {
     }
 }
 
-pub fn render_integer(int: u64) -> Markup {
+pub fn render_integer_with_commas(int: u64) -> Markup {
+    let string = int.to_formatted_string(&Locale::en);
+    let parts = string.split(",").collect::<Vec<_>>();
+
+    html! {
+        @for (idx, part) in parts.iter().enumerate() {
+            @if idx != 0 {
+                span.non-selectable { "," }
+            }
+            span { (part) }
+        }
+    }
+}
+
+fn render_integer_with_small_flag(int: u64, smallify: bool) -> Markup {
     let string = int.to_formatted_string(&Locale::en);
     let parts = string.split(",").collect::<Vec<_>>();
     html! {
         @for (idx, part) in parts.iter().enumerate() {
-            @if idx >= 2 {
+            @if idx >= 2 && smallify {
                 small.digit-sep[idx < parts.len() - 1] { (part) }
             } @else {
                 span.digit-sep[idx < parts.len() - 1] { (part) }
@@ -41,6 +55,15 @@ pub fn render_integer(int: u64) -> Markup {
         }
     }
 }
+
+pub fn render_integer(int: u64) -> Markup {
+    render_integer_with_small_flag(int, false)
+}
+
+pub fn render_integer_smallify(int: u64) -> Markup {
+    render_integer_with_small_flag(int, true)
+}
+
 
 pub fn render_difficulty(difficulty: f64) -> Markup {
     let est_hashrate = difficulty * (0xffffffffu64 as f64) / 600.0;
@@ -80,10 +103,10 @@ pub fn render_sats(sats: i64) -> Markup {
     let integer_part: u64 = parts.next().unwrap().parse().unwrap();
     let fract_part = parts.next().unwrap();
     if fract_part == "00" {
-        render_integer(integer_part)
+        render_integer_with_commas(integer_part)
     } else {
         html! {
-            (render_integer(integer_part))
+            (render_integer_with_commas(integer_part))
             "."
             small {
                 (fract_part)
@@ -95,7 +118,7 @@ pub fn render_sats(sats: i64) -> Markup {
 pub fn render_amount(base_amount: u64, decimals: u32) -> Markup {
     let decimals = decimals as usize;
     if decimals == 0 {
-        return render_integer(base_amount);
+        return render_integer_smallify(base_amount);
     }
     let base_amount_str = format!("{:0digits$}", base_amount, digits = decimals + 1);
     let decimal_idx = base_amount_str.len() - decimals;
@@ -117,5 +140,5 @@ pub fn render_amount(base_amount: u64, decimals: u32) -> Markup {
             (rendered)
         };
     }
-    html! { (render_integer(integer_part)) "." (rendered) }
+    html! { (render_integer_smallify(integer_part)) "." (rendered) }
 }
