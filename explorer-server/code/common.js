@@ -184,13 +184,13 @@ const scrollToBottom = () => {
     const tier4 = padding + 4 * letter;
 
     let predictedTier;
-    if (lastPage > 0 && lastPage < 9) {
+    if (lastPage > 0 && lastPage < 10) {
       predictedTier = tier1;
-    } else if (lastPage > 9 && lastPage <= 99) {
+    } else if (lastPage > 9 && lastPage < 100) {
       predictedTier = tier2;
-    } else if (lastPage > 99 && lastPage <= 999) {
+    } else if (lastPage > 99 && lastPage < 1000) {
       predictedTier = tier3;
-    } else if (lastPage > 999 && lastPage <= 9999) {
+    } else if (lastPage > 999 && lastPage <= 10000) {
       predictedTier = tier4;
     }
 
@@ -210,7 +210,12 @@ const scrollToBottom = () => {
   };
 
   const generatePaginationArray = (currentPage, max, slots) => {
+    if (slots > max) {
+      return [...Array(max).keys()].slice(1).map(x => ++x);
+    }
+
     let increments;
+    let pageArray = [];
 
     if (slots <= 6) {
       increments = [1, 100, 500, 1000, 2000, 4000];
@@ -219,10 +224,8 @@ const scrollToBottom = () => {
       increments = [1, 10, 50, 100, 500, 1000, 2000, 4000];
     }
     else {
-      increments = [1, 2, 10, 20, 50, 100, 500, 1000, 2000, 4000];
+      increments = [1, 2, 10, 50, 100, 500, 1000, 2000, 4000];
     }
-
-    let pageArray = [];
 
     for (i = 0; i < Math.floor(slots / 2); i++) {
       const currentIncrement = increments[i];
@@ -256,13 +259,44 @@ const scrollToBottom = () => {
       const precision = String(value).length - 1
 
       if (currentIncrement >= 10 && precision) {
-        pageArray.push(parseFloat(value.toPrecision(precision)));
+        const round = parseFloat(value.toPrecision(precision))
+
+        if (round >= max) {
+          break;
+        }
+
+        pageArray.push(round);
       } else {
         pageArray.push(value);
       }
     }
 
     if (currentPage == max) { pageArray.pop() };
+
+    if (max < 50000 && (slots - pageArray.length) > 10) {
+
+      let index;
+      const indexRound = pageArray.findIndex(x => !(x % 10));
+      const indexPage = pageArray.indexOf(currentPage)
+
+      if (indexRound <= 0) {
+        index = 1
+      } else if (indexRound > indexPage && currentPage > 10) {
+        index = indexPage - 2
+      } else {
+        index = indexRound
+      }
+
+      const extension = [...Array(9).keys()].map(x => ++x);
+
+      if (pageArray[index] != 10) {
+        extension.push(10)
+      }
+
+      pageArray = pageArray.slice(index);
+      pageArray = extension.concat(pageArray)
+      pageArray.shift()
+    }
     return pageArray;
   };
 
