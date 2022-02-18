@@ -159,6 +159,71 @@ impl Server {
         let json_response = JsonResponse { data: json_txs.txs };
         Ok(serde_json::to_string(&json_response)?)
     }
+
+    pub async fn data_address_balances(&self, address: &str, query: HashMap<String, String>) -> Result<impl Reply> {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct JsonResponse {
+            data: Vec<JsonBalance>,
+        }
+
+        let offset: usize = query.get("offset").map(|s| s.as_str()).unwrap_or("0").parse()?;
+        let take: usize = query.get("take").map(|s| s.as_str()).unwrap_or("100").parse()?;
+
+        let address = Address::from_cash_addr(address)?;
+        let sats_address = address.with_prefix(self.satoshi_addr_prefix);
+        let address_txs = self.indexer.db().address(&sats_address, offset, take)?;
+        let mut json_txs = self.json_txs(
+            address_txs
+                .iter()
+                .map(|(tx_hash, addr_tx, tx_meta)| {
+                    (tx_hash.as_ref(), addr_tx.timestamp, Some(addr_tx.block_height), tx_meta, (addr_tx.delta_sats, addr_tx.delta_tokens))
+                })
+        ).await?;
+        let balance = self.indexer.db().address_balance(&sats_address, offset, take)?;
+        let AddressBalance { balances, utxos } = balance;
+        for (token_id, _) in &utxos {
+            if let Some(token_id) = &token_id {
+                if !json_txs.token_indices.contains_key(token_id.as_ref()) {
+                    if let Some(token_meta) = self.indexer.db().token_meta(token_id)? {
+                        json_txs.token_indices.insert(token_id.to_vec(), json_txs.tokens.len());
+                        json_txs.tokens.push(JsonToken::from_token_meta(token_id, token_meta));
+                    }
+                }
+            }
+        }
+
+        let mut json_balances = utxos.into_iter().map(|(token_id, mut utxos)| {
+            let (sats_amount, token_amount) = balances[&token_id];
+            utxos.sort_by_key(|(_, utxo)| -utxo.block_height);
+            (
+                utxos.get(0).map(|(_, utxo)| utxo.block_height).unwrap_or(0),
+                JsonBalance {
+                    token_idx: token_id.and_then(|token_id| json_txs.token_indices.get(token_id.as_ref())).copied(),
+                    sats_amount,
+                    token_amount,
+                    utxos: utxos.into_iter().map(|(utxo_key, utxo)| JsonUtxo {
+                        tx_hash: to_le_hex(&utxo_key.tx_hash),
+                        out_idx: utxo_key.out_idx.get(),
+                        sats_amount: utxo.sats_amount,
+                        token_amount: utxo.token_amount,
+                        is_coinbase: utxo.is_coinbase,
+                        block_height: utxo.block_height,
+                    }).collect(),
+                }
+            )
+        }).collect::<Vec<_>>();
+        json_balances.sort_by_key(|(block_height, balance)| {
+            if balance.token_idx.is_none() {
+                i32::MIN
+            } else {
+                -block_height
+            }
+        });
+        let json_balances: Vec<JsonBalance> = json_balances.into_iter().map(|(_, balance)| balance).collect::<Vec<_>>();
+        let json_response = JsonResponse { data: json_balances };
+        Ok(serde_json::to_string(&json_response)?)
+    }
 }
 
 impl Server {

@@ -114,6 +114,14 @@ async fn main() -> Result<()> {
             server.data_address_txs(&address, query).await.map_err(err)
         });
 
+    let data_address_balances =
+        warp::path!("api" / "address" / String / "balances")
+        .and(with_server(&server))
+        .and(warp::query::<HashMap<String, String>>())
+        .and_then(|address: String, server: ServerRef, query: HashMap<String, String>| async move {
+            server.data_address_balances(&address, query).await.map_err(err)
+        });
+
     let js = warp::path("code")
         .and(warp::fs::dir("./code"));
 
@@ -134,6 +142,7 @@ async fn main() -> Result<()> {
         .or(data_blocks)
         .or(data_block_txs)
         .or(data_address_txs)
+        .or(data_address_balances)
         .or(js)
         .or(favicon)
         .or(assets)
