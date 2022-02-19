@@ -67,7 +67,7 @@ h1, h2, h3, h4, h5 {
   z-index: 999;
 }
 
-.webix_dtable .hash {
+.hash {
   font-family: 'Ubuntu Mono';
 }
 
@@ -81,12 +81,12 @@ h1, h2, h3, h4, h5 {
   text-align: left;
 }
 
-#txs-table .webix_view,
-#block-txs .webix_view {
+#txs-table
+#block-txs {
   font-size: 13px !important;
 }
 
-#txs-table .fee .webix_cell {
+#txs-table .fee {
   overflow: visible;
 }
 
@@ -101,14 +101,6 @@ h1, h2, h3, h4, h5 {
 
 .zeros {
   opacity: 0.3; 
-}
-
-.webix_view {
-  font-family: inherit;
-}
-
-.webix_ss_header, .webix_ss_header > div, .webix_ss_header > div > div {
-  font-family: inherit !important;
 }
 
 .digit-sep {
@@ -218,10 +210,6 @@ h1, h2, h3, h4, h5 {
 
 #coins .token-table {
   padding-left: 65px;
-}
-
-#addr-txs #txs-table .webix_view, #addr-txs #txs-table .webix_hcell {
-  font-size: 12px !important;
 }
 
 #footer {
@@ -479,17 +467,11 @@ table.dataTable.no-footer {
   z-index: 100;
 }
 
-.datatable__block_listing
-.webix_dtable,
-.webix_view {
+.datatable__block_listing {
   border: 0;
 }
 
-.datatable__block_listing
-.webix_ss_header,
-.webix_hs_center,
-.webix_hcolumn,
-.webix_hcell {
+.datatable__block_listing {
   background: transparent;
   border: 0;
   font-weight: 700;

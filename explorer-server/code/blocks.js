@@ -99,7 +99,7 @@ const reRenderPage = params => {
 };
 
 // main
-webix.ready(() => {
+$(document).ready(() => {
   // init all UI elements
   dataTable();
 
