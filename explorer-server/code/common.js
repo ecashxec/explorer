@@ -138,13 +138,23 @@ const scrollToBottom = () => {
 
     switch (params.currentTab) {
       case 'transactions':
-        params.txPage = validatePaginationInts(params.page, DEFAULT_PAGE);
-        params.txRows = validatePaginationInts(params.rows, DEFAULT_ROWS_PER_PAGE);
+        params.txp = validatePaginationInts(params.page, DEFAULT_PAGE);
+        params.txr = validatePaginationInts(params.rows, DEFAULT_ROWS_PER_PAGE);
         break;
 
-      case 'outpoints':
-        params.eCashOutpointsPage = validatePaginationInts(params.page, DEFAULT_PAGE);
-        params.eCashOutpointsRows = validatePaginationInts(params.rows, DEFAULT_ROWS_PER_PAGE);
+      case 'ecash-outpoints':
+        params.ecop = validatePaginationInts(params.page, DEFAULT_PAGE);
+        params.ecor = validatePaginationInts(params.rows, DEFAULT_ROWS_PER_PAGE);
+        break;
+
+      case 'etoken-balances':
+        params.etbp = validatePaginationInts(params.page, DEFAULT_PAGE);
+        params.etbr = validatePaginationInts(params.rows, DEFAULT_ROWS_PER_PAGE);
+        break;
+
+      case 'etoken-outpoints':
+        params.etop = validatePaginationInts(params.page, DEFAULT_PAGE);
+        params.etor = validatePaginationInts(params.rows, DEFAULT_ROWS_PER_PAGE);
         break;
     }
 
@@ -161,13 +171,23 @@ const scrollToBottom = () => {
 
     switch (params.currentTab) {
       case 'transactions':
-        params.page = params.txPage;
-        params.rows = params.txRows;
+        params.page = params.txp;
+        params.rows = params.txr;
         break;
 
-      case 'outpoints':
-        params.page = params.eCashOutpointsPage;
-        params.rows = params.eCashOutpointsRows;
+      case 'ecash-outpoints':
+        params.page = params.ecop;
+        params.rows = params.ecor;
+        break;
+
+      case 'etoken-balances':
+        params.page = params.etbp;
+        params.rows = params.etbr;
+        break;
+
+      case 'etoken-balances':
+        params.page = params.etor;
+        params.rows = params.etop;
         break;
     }
 

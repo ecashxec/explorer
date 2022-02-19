@@ -11,61 +11,6 @@ const renderOutpointHeight = (_value, _type, row) => {
   return `<a href="/block-height/${blockHeight}">${renderInteger(blockHeight)}</a>`;
 };
 
-const renderXEC = sats => `${renderSats(sats)} XEC`;
-
-var isTokenTableLoaded = {};
-function loadTokenTable(balanceIdx) {
-  if (!isTokenTableLoaded[balanceIdx]) {
-    console.log(addrBalances[balanceIdx].utxos);
-    webix.ui({
-      container: "tokens-coins-table-" + balanceIdx,
-      view: "datatable",
-      columns:[
-        {
-          id: "outpoint",
-          header: "Outpoint",
-          css: "hash",
-          adjust: true,
-          template: function (row) {
-            return '<a href="/tx/' + row.txHash + '">' + 
-              row.txHash + ':' + row.outIdx +
-              (row.isCoinbase ? '<div class="ui green horizontal label">Coinbase</div>' : '') +
-              '</a>';
-          },
-        },
-        {
-          id: "blockHeight",
-          header: "Block Height",
-          adjust: true,
-          template: function (row) {
-            return '<a href="/block-height/' + row.blockHeight + '">' + renderInteger(row.blockHeight) + '</a>';
-          },
-        },
-        {
-          id: "tokenAmount",
-          header: addrBalances[balanceIdx].token.tokenTicker + " amount",
-          adjust: true,
-          template: function (row) {
-            return renderAmount(row.tokenAmount, addrBalances[balanceIdx].token.decimals) + ' ' + addrBalances[balanceIdx].token.tokenTicker;
-          },
-        },
-        {
-          id: "satsAmount",
-          header: "XEC amount",
-          adjust: true,
-          template: function (row) {
-            return renderSats(row.satsAmount) + ' XEC';
-          },
-        },
-      ],
-      autoheight: true,
-      autowidth: true,
-      data: addrBalances[balanceIdx].utxos,
-    });
-    isTokenTableLoaded[balanceIdx] = true;
-  }
-}
-
 const renderAge = timestamp => {
   if (timestamp == 0) {
     return '<div class="ui gray horizontal label">Mempool</div>';
@@ -116,15 +61,17 @@ const renderFeePerByte = (_value, _type, row) => {
   return renderInteger(Math.round(feePerByte * 1000)) + '/kB';
 };
 
-const renderAmountXEC = deltaSats => renderSats(deltaSats) + ' XEC';
+const renderAmountXEC = sats => renderSats(sats) + ' XEC';
 
-const renderToken = (_value, _type, row) => {
+const renderTokenWithTicker = (_value, _type, row) => {
   if (row.token !== null) {
     var ticker = ' <a href="/tx/' + row.token.tokenId + '">' + row.token.tokenTicker + '</a>';
     return renderAmount(row.deltaTokens, row.token.decimals) + ticker;
   }
   return '';
 };
+
+const renderToken = (_value, _type, row) => renderAmount(row.tokenAmount, row.token.decimals);
 
 const updateLoading = (status, tableId) => {
   if (status) {
@@ -173,7 +120,7 @@ const datatableTxs = () => {
       { name: "numInputs", data: 'numInputs', title: "Inputs" },
       { name: "numOutputs", data: 'numOutputs', title: "Outputs" },
       { name: "deltaSats", data: 'deltaSats', title: "Amount XEC", render: renderAmountXEC },
-      { name: "token", title: "Amount Token", render: renderToken },
+      { name: "token", title: "Amount Token", render: renderTokenWithTicker },
       { name: 'responsive', render: () => '' },
     ],
   });
@@ -182,7 +129,7 @@ const datatableTxs = () => {
   $('#address-txs-table').dataTable().api().page.len(params.txRows);
 }
 
-const datatableOutpoints = () => {
+const datatableCashOutpoints = () => {
   const address = getAddress();
 
   $('#outpoints-table').DataTable({
@@ -213,14 +160,96 @@ const datatableOutpoints = () => {
     columns:[
       { name: "outpoint", className: "hash", render: renderOutpoint },
       { name: "block", render: renderOutpointHeight },
-      { name: "xec", data: 'satsAmount', render: renderXEC },
+      { name: "xec", data: 'satsAmount', render: renderAmountXEC },
       { name: 'responsive', render: () => '' },
     ],
   });
 
   params = window.state.getParameters();
   $('#outpoints-table').dataTable().api().page.len(params.eCashOutpointsRows);
-}
+};
+
+const datatableTokenOutpoints = () => {
+  const address = getAddress();
+
+  $('#address-token-outpoints-table').DataTable({
+    searching: false,
+    lengthMenu: [50, 100, 250, 500, 1000],
+    pageLength: DEFAULT_ROWS_PER_PAGE,
+    language: {
+      loadingRecords: '',
+      zeroRecords: '',
+      emptyTable: '',
+    },
+    ajax: {
+      url: `/api/address/${address}/balances`,
+      dataSrc: response => {
+        const tokenBalances = response.data.filter(balance => balance.tokenIdx);
+        if (tokenBalances.length === 0) { return [] }
+        return tokenBalances.reduce((acc, balance) => [].concat(acc, balance.utxos))
+      },
+    },
+    order: [ [ 1, 'desc' ] ],
+    responsive: {
+        details: {
+            type: 'column',
+            target: -1
+        }
+    },
+    columnDefs: [ {
+        className: 'dtr-control',
+        orderable: false,
+        targets:   -1
+    } ],
+    columns:[
+      { name: 'outpoint', className: "hash", render: renderOutpoint },
+      { name: 'block', render: renderOutpointHeight },
+      { name: 'amount', data: 'tokenAmount', render: () => '' },
+      { name: 'dust', data: 'satsAmount', render: renderAmountXEC },
+      { name: 'responsive', render: () => '' },
+    ],
+  });
+};
+
+const datatableTokenBalances = () => {
+  const address = getAddress();
+
+  $('#address-token-balances-table').DataTable({
+    searching: false,
+    lengthMenu: [50, 100, 250, 500, 1000],
+    pageLength: DEFAULT_ROWS_PER_PAGE,
+    language: {
+      loadingRecords: '',
+      zeroRecords: '',
+      emptyTable: '',
+    },
+    ajax: {
+      url: `/api/address/${address}/balances`,
+      dataSrc: response => {
+        return response.data.filter(balance => balance.tokenIdx);
+      },
+    },
+    order: [ [ 1, 'desc' ] ],
+    responsive: {
+        details: {
+            type: 'column',
+            target: -1
+        }
+    },
+    columnDefs: [ {
+        className: 'dtr-control',
+        orderable: false,
+        targets:   -1
+    } ],
+    columns:[
+      { name: 'amount', data: 'tokenAmount', render: renderToken },
+      { name: 'ticker', data: 'token.tokenTicker' },
+      { name: 'name', data: 'token.tokenName' },
+      { name: 'dust', data: 'satsAmount', render: renderAmountXEC },
+      { name: 'responsive', render: () => '' },
+    ],
+  });
+};
 
 $('#address-txs-table').on('xhr.dt', () => {
   updateLoading(false, 'address-txs-table');
@@ -272,9 +301,23 @@ const reRenderPage = params => {
   window.pagination.generatePaginationUI(currentPage, pageArray);
 };
 
+$('#outpoints-table').on('xhr.dt', () => {
+  updateLoading(false, 'outpoints-table');
+});
+
+$('#address-token-balances-table').on('xhr.dt', () => {
+  updateLoading(false, 'address-token-balances-table');
+});
+
+$('#address-token-outpoints-table').on('xhr.dt', () => {
+  updateLoading(false, 'address-token-outpoints-table');
+});
+
 $(document).ready(() => {
   datatableTxs();
-  datatableOutpoints();
+  datatableCashOutpoints();
+  datatableTokenOutpoints();
+  datatableTokenBalances();
 
   $('.menu .item').tab({
     onVisible: tabPath => (
