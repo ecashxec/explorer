@@ -3,12 +3,12 @@ const getAddress = () => window.location.pathname.split('/')[2];
 const updateLoading = (status, tableId) => {
   if (status) {
     $(`#${tableId} > tbody`).addClass('blur');
-    $('#pagination').addClass('hidden');
-    $('#footer').addClass('hidden');
+    $('#pagination').addClass('visibility-hidden');
+    $('#footer').addClass('visibility-hidden');
   } else {
     $(`#${tableId} > tbody`).removeClass('blur');
-    $('#pagination').removeClass('hidden');
-    $('#footer').removeClass('hidden');
+    $('#pagination').removeClass('visibility-hidden');
+    $('#footer').removeClass('visibility-hidden');
   }
 };
 
