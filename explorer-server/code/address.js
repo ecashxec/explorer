@@ -129,9 +129,7 @@ const datatableTxs = () => {
   $('#address-txs-table').dataTable().api().page.len(params.txRows);
 }
 
-const datatableCashOutpoints = () => {
-  const address = getAddress();
-
+const datatableCashOutpoints = cashOutpoints => {
   $('#outpoints-table').DataTable({
     searching: false,
     lengthMenu: [50, 100, 250, 500, 1000],
@@ -141,10 +139,7 @@ const datatableCashOutpoints = () => {
       zeroRecords: '',
       emptyTable: '',
     },
-    ajax: {
-      url: `/api/address/${address}/balances`,
-      dataSrc: response => response.data[0].utxos,
-    },
+    data: cashOutpoints,
     order: [ [ 1, 'desc' ] ],
     responsive: {
         details: {
@@ -169,9 +164,7 @@ const datatableCashOutpoints = () => {
   $('#outpoints-table').dataTable().api().page.len(params.eCashOutpointsRows);
 };
 
-const datatableTokenOutpoints = () => {
-  const address = getAddress();
-
+const datatableTokenOutpoints = tokenUtxos => {
   $('#address-token-outpoints-table').DataTable({
     searching: false,
     lengthMenu: [50, 100, 250, 500, 1000],
@@ -181,14 +174,7 @@ const datatableTokenOutpoints = () => {
       zeroRecords: '',
       emptyTable: '',
     },
-    ajax: {
-      url: `/api/address/${address}/balances`,
-      dataSrc: response => {
-        const tokenBalances = response.data.filter(balance => balance.tokenIdx);
-        if (tokenBalances.length === 0) { return [] }
-        return tokenBalances.reduce((acc, balance) => [].concat(acc, balance.utxos))
-      },
-    },
+    data: tokenUtxos,
     order: [ [ 1, 'desc' ] ],
     responsive: {
         details: {
@@ -211,9 +197,7 @@ const datatableTokenOutpoints = () => {
   });
 };
 
-const datatableTokenBalances = () => {
-  const address = getAddress();
-
+const datatableTokenBalances = tokenBalances => {
   $('#address-token-balances-table').DataTable({
     searching: false,
     lengthMenu: [50, 100, 250, 500, 1000],
@@ -223,12 +207,7 @@ const datatableTokenBalances = () => {
       zeroRecords: '',
       emptyTable: '',
     },
-    ajax: {
-      url: `/api/address/${address}/balances`,
-      dataSrc: response => {
-        return response.data.filter(balance => balance.tokenIdx);
-      },
-    },
+    data: tokenBalances,
     order: [ [ 1, 'desc' ] ],
     responsive: {
         details: {
@@ -301,23 +280,43 @@ const reRenderPage = params => {
   window.pagination.generatePaginationUI(currentPage, pageArray);
 };
 
-$('#outpoints-table').on('xhr.dt', () => {
+$('#outpoints-table').on('init.dt', () => {
   updateLoading(false, 'outpoints-table');
 });
 
-$('#address-token-balances-table').on('xhr.dt', () => {
+$('#address-token-balances-table').on('init.dt', () => {
   updateLoading(false, 'address-token-balances-table');
 });
 
-$('#address-token-outpoints-table').on('xhr.dt', () => {
+$('#address-token-outpoints-table').on('init.dt', () => {
   updateLoading(false, 'address-token-outpoints-table');
 });
 
+const getAddressBalances = () => {
+  const address = getAddress();
+  return fetch(`/api/address/${address}/balances`)
+    .then(response => response.json())
+    .then(response => response.data);
+}
+
 $(document).ready(() => {
   datatableTxs();
-  datatableCashOutpoints();
-  datatableTokenOutpoints();
-  datatableTokenBalances();
+  getAddressBalances()
+    .then(balances => {
+      const cashBalance = balances.shift();
+      const tokenBalances = balances;
+
+      let tokenUtxos = []
+      if (tokenBalances.length > 0) { 
+        tokenUtxos = tokenBalances.reduce((acc, balance) => (
+          [].concat(acc, balance.utxos))
+        );
+      }
+
+      datatableCashOutpoints(cashBalance.utxos);
+      datatableTokenOutpoints(tokenUtxos);
+      datatableTokenBalances(tokenBalances);
+    });
 
   $('.menu .item').tab({
     onVisible: tabPath => (
