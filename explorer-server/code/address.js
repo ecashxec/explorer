@@ -13,11 +13,8 @@ const updateLoading = (status, tableId) => {
 };
 
 const datatableTxs = () => {
-  const address = getAddress();
-
   $('#address-txs-table').DataTable({
     ...window.datatable.baseConfig,
-    ajax: `/api/address/${address}/transactions`,
     columns:[
       { name: "age", data: 'timestamp', title: "Age", render: window.datatable.renderAge },
       { name: "timestamp", data: 'timestamp', title: "Date (UTC" + tzOffset + ")", render: window.datatable.renderTimestamp },
@@ -89,6 +86,10 @@ $('#outpoints-table').on('xhr.dt', () => {
   updateLoading(false, 'outpoints-table');
 });
 
+$('#address-txs-table').on('init.dt', () => {
+  updateLoading(false, 'address-txs-table');
+});
+
 const updateTable = (paginationRequest) => {
   const params = new URLSearchParams(paginationRequest).toString();
   const address = getAddress();
@@ -156,8 +157,99 @@ const getAddressBalances = () => {
     .then(response => response.data);
 }
 
+const getAddressTransactions = () => {
+  const address = getAddress();
+  return fetch(`/api/address/${address}/transactions`)
+    .then(response => response.json())
+    .then(response => response.data);
+}
+
+const getAddressStatistics = () => {
+  const address = getAddress();
+  return fetch(`/api/address/${address}/statistics`)
+    .then(response => response.json())
+    .then(response => response.data);
+}
+
+const cubeSelectors = ['.cash-address', '.token-address', '.legacy-address']
+const cubeRotate = (motion, next) => {
+  $('.address__qr-code-wrapper')
+    .shape('set next side', cubeSelectors[next - 1])
+    .shape(`flip ${motion}`);
+};
+
+$('#address__selector tr').click(function() {
+  const cubeTotalSides = 3
+  const previousSide = $('.address__qr-code-wrapper').data('cube-active-side');
+  const desiredSide = $(this).data('cube-side')
+
+  if (previousSide === desiredSide) {
+    return;
+  }
+
+  const diff  = desiredSide - previousSide;
+  const absoluteDiff  = Math.abs(diff);
+  const motion = diff < 0 ? 'down' : 'up';
+  const isAnimating = $('.address__qr-code-wrapper').shape('is animating');
+
+  $(this).siblings().removeClass('left marked')
+  $(this).addClass('left marked')
+
+  if (isAnimating) {
+    setTimeout(function () {
+      $('.address__qr-code-wrapper').shape('reset');
+      $('.address__qr-code-wrapper').shape('refresh');
+      cubeRotate(motion, desiredSide)
+    }, 300);
+    $('.address__qr-code-wrapper').data('cube-active-side', desiredSide);
+    return;
+  }
+
+  let currentSide = previousSide;
+  for (i = 0; i < absoluteDiff; i++) {
+    const n = motion === 'down' ? -1 : 1;
+    const next = ((currentSide + n) % (cubeTotalSides + 1) + (cubeTotalSides + 1)) % (cubeTotalSides + 1);
+    console.log(next)
+    console.log(cubeSelectors[next - 1])
+    currentSide = next
+
+    const isAnimating = $('.address__qr-code-wrapper').shape('is animating');
+
+    if (isAnimating) {
+      setTimeout(function () {
+        cubeRotate(motion, next)
+      }, 300);
+    } else {
+      cubeRotate(motion, next)
+    }
+  }
+
+  $('.address__qr-code-wrapper').data('cube-active-side', desiredSide);
+});
+
 $(document).ready(() => {
   datatableTxs();
+
+  getAddressStatistics()
+    .then(statistics => {
+      const {
+        totalTxsReceived,
+        totalTxsSent,
+        totalUtxos,
+        firstBalanceChange,
+        lastBalanceChange,
+      } = statistics;
+
+      const firstTimestamp = firstBalanceChange ? moment(firstBalanceChange * 1000).fromNow() : 'Never';
+      const lastTimestamp = firstBalanceChange ? moment(lastBalanceChange * 1000).fromNow() : 'Never';
+
+      $('#address-total-received').text(totalTxsReceived);
+      $('#address-total-sent').text(totalTxsSent);
+      $('#address-total-utxos').text(totalUtxos);
+      $('#address-first-balance-change').text(firstTimestamp);
+      $('#address-last-balance-change').text(lastTimestamp);
+    });
+
   getAddressBalances()
     .then(balances => {
       const cashBalance = balances.shift();
@@ -180,6 +272,39 @@ $(document).ready(() => {
       reRenderPage({ currentTab: tabPath })
     )
   });
+
+  $('.address__qr-code-wrapper').shape({ duration: 250 });
+
+  const cashAddress = $('#qr-cash-address');
+  const tokenAddress = $('#qr-token-address');
+  const legacyAddress = $('#qr-legacy-address');
+
+  QrCreator.render({
+    text: cashAddress.data('address'),
+    radius: 0.5, // 0.0 to 0.5
+    ecLevel: 'H', // L, M, Q, H
+    fill: '#FFFFFF', // foreground color
+    background: null, // color or null for transparent
+    size: 290// in pixels
+  }, cashAddress.get(0));
+
+  QrCreator.render({
+    text: tokenAddress.data('address'),
+    radius: 0.5, // 0.0 to 0.5
+    ecLevel: 'H', // L, M, Q, H
+    fill: '#FFFFFF', // foreground color
+    background: null, // color or null for transparent
+    size: 290// in pixels
+  }, tokenAddress.get(0));
+
+  QrCreator.render({
+    text: legacyAddress.data('address'),
+    radius: 0.5, // 0.0 to 0.5
+    ecLevel: 'H', // L, M, Q, H
+    fill: '#FFFFFF', // foreground color
+    background: null, // color or null for transparent
+    size: 290// in pixels
+  }, legacyAddress.get(0));
 
   reRenderPage()
 });
