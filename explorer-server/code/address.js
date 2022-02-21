@@ -1,78 +1,5 @@
 const getAddress = () => window.location.pathname.split('/')[2];
 
-const renderOutpoint = (_value, _type, row) => {
-  const { txHash, outIdx } = row;
-  const label = row.isCoinbase ? '<div class="ui green horizontal label">Coinbase</div>' : '';
-  return `<a href="/tx/${txHash}">${txHash}:${outIdx}${label}</a>`;
-};
-
-const renderOutpointHeight = (_value, _type, row) => {
-  const { blockHeight } = row;
-  return `<a href="/block-height/${blockHeight}">${renderInteger(blockHeight)}</a>`;
-};
-
-const renderAge = timestamp => {
-  if (timestamp == 0) {
-    return '<div class="ui gray horizontal label">Mempool</div>';
-  }
-  return moment(timestamp * 1000).fromNow();
-};
-
-const renderTimestamp = timestamp => {
-  if (timestamp == 0) {
-    return '<div class="ui gray horizontal label">Mempool</div>';
-  }
-  return moment(timestamp * 1000).format('ll, LTS');
-};
-
-const renderTxID = txHash => {
-  return '<a href="/tx/' + txHash + '">' + renderTxHash(txHash) + '</a>';
-};
-
-const renderBlockHeight = (_value, _type, row) => {
-  if (row.timestamp == 0) {
-    return '<div class="ui gray horizontal label">Mempool</div>';
-  }
-  return '<a href="/block-height/' + row.blockHeight + '">' + renderInteger(row.blockHeight) + '</a>';
-};
-
-const renderSize = size => formatByteSize(size);
-
-const renderFee = (_value, _type, row) => {
-  if (row.isCoinbase) {
-    return '<div class="ui green horizontal label">Coinbase</div>';
-  }
-
-  const fee = renderInteger(row.satsInput - row.satsOutput);
-  let markup = '';
-
-  markup += `<span>${fee}</span>`
-  markup += `<span class="fee-per-byte">&nbsp(${renderFeePerByte(_value, _type, row)})</span>`
-
-  return markup;
-};
-
-const renderFeePerByte = (_value, _type, row) => {
-  if (row.isCoinbase) {
-    return '';
-  }
-  const fee = row.satsInput - row.satsOutput;
-  const feePerByte = fee / row.size;
-  return renderInteger(Math.round(feePerByte * 1000)) + '/kB';
-};
-
-const renderAmountXEC = sats => renderSats(sats) + ' XEC';
-
-const renderTokenWithTicker = (_value, _type, row) => {
-  if (row.token !== null) {
-    var ticker = ' <a href="/tx/' + row.token.tokenId + '">' + row.token.tokenTicker + '</a>';
-    return renderAmount(row.deltaTokens, row.token.decimals) + ticker;
-  }
-  return '';
-};
-
-const renderToken = (_value, _type, row) => renderAmount(row.tokenAmount, row.token.decimals);
-
 const updateLoading = (status, tableId) => {
   if (status) {
     $(`#${tableId} > tbody`).addClass('blur');
@@ -89,38 +16,19 @@ const datatableTxs = () => {
   const address = getAddress();
 
   $('#address-txs-table').DataTable({
-    searching: false,
-    lengthMenu: [50, 100, 250, 500, 1000],
-    pageLength: DEFAULT_ROWS_PER_PAGE,
-    language: {
-      loadingRecords: '',
-      zeroRecords: '',
-      emptyTable: '',
-    },
+    ...window.datatable.baseConfig,
     ajax: `/api/address/${address}/transactions`,
-    order: [ [ 1, 'desc' ] ],
-    responsive: {
-        details: {
-            type: 'column',
-            target: -1
-        }
-    },
-    columnDefs: [ {
-        className: 'dtr-control',
-        orderable: false,
-        targets:   -1
-    } ],
     columns:[
-      { name: "age", data: 'timestamp', title: "Age", render: renderAge },
-      { name: "timestamp", data: 'timestamp', title: "Date (UTC" + tzOffset + ")", render: renderTimestamp },
-      { name: "txHash", data: 'txHash', title: "Transaction ID", className: "hash", render: renderTxID },
-      { name: "blockHeight", title: "Block Height", render: renderBlockHeight },
-      { name: "size", data: 'size', title: "Size", render: renderSize },
-      { name: "fee", title: "Fee [sats]", className: "fee", render: renderFee },
+      { name: "age", data: 'timestamp', title: "Age", render: window.datatable.renderAge },
+      { name: "timestamp", data: 'timestamp', title: "Date (UTC" + tzOffset + ")", render: window.datatable.renderTimestamp },
+      { name: "txHash", data: 'txHash', title: "Transaction ID", className: "hash", render: window.datatable.renderCompactTxHash },
+      { name: "blockHeight", title: "Block Height", render: window.datatable.renderBlockHeight },
+      { name: "size", data: 'size', title: "Size", render: window.datatable.renderSize },
+      { name: "fee", title: "Fee [sats]", className: "fee", render: window.datatable.renderFee },
       { name: "numInputs", data: 'numInputs', title: "Inputs" },
       { name: "numOutputs", data: 'numOutputs', title: "Outputs" },
-      { name: "deltaSats", data: 'deltaSats', title: "Amount XEC", render: renderAmountXEC },
-      { name: "token", title: "Amount Token", render: renderTokenWithTicker },
+      { name: "deltaSats", data: 'deltaSats', title: "Amount XEC", render: window.datatable.renderAmountXEC },
+      { name: "token", title: "Amount Token", render: window.datatable.renderTokenAmountTicker },
       { name: 'responsive', render: () => '' },
     ],
   });
@@ -131,31 +39,12 @@ const datatableTxs = () => {
 
 const datatableCashOutpoints = cashOutpoints => {
   $('#outpoints-table').DataTable({
-    searching: false,
-    lengthMenu: [50, 100, 250, 500, 1000],
-    pageLength: DEFAULT_ROWS_PER_PAGE,
-    language: {
-      loadingRecords: '',
-      zeroRecords: '',
-      emptyTable: '',
-    },
+    ...window.datatable.baseConfig,
     data: cashOutpoints,
-    order: [ [ 1, 'desc' ] ],
-    responsive: {
-        details: {
-            type: 'column',
-            target: -1
-        }
-    },
-    columnDefs: [ {
-        className: 'dtr-control',
-        orderable: false,
-        targets:   -1
-    } ],
     columns:[
-      { name: "outpoint", className: "hash", render: renderOutpoint },
-      { name: "block", render: renderOutpointHeight },
-      { name: "xec", data: 'satsAmount', render: renderAmountXEC },
+      { name: "outpoint", className: "hash", render: window.datatable.renderOutpoint },
+      { name: "block", render: window.datatable.renderOutpointHeight },
+      { name: "xec", data: 'satsAmount', render: window.datatable.renderAmountXEC },
       { name: 'responsive', render: () => '' },
     ],
   });
@@ -166,32 +55,13 @@ const datatableCashOutpoints = cashOutpoints => {
 
 const datatableTokenOutpoints = tokenUtxos => {
   $('#address-token-outpoints-table').DataTable({
-    searching: false,
-    lengthMenu: [50, 100, 250, 500, 1000],
-    pageLength: DEFAULT_ROWS_PER_PAGE,
-    language: {
-      loadingRecords: '',
-      zeroRecords: '',
-      emptyTable: '',
-    },
+    ...window.datatable.baseConfig,
     data: tokenUtxos,
-    order: [ [ 1, 'desc' ] ],
-    responsive: {
-        details: {
-            type: 'column',
-            target: -1
-        }
-    },
-    columnDefs: [ {
-        className: 'dtr-control',
-        orderable: false,
-        targets:   -1
-    } ],
     columns:[
-      { name: 'outpoint', className: "hash", render: renderOutpoint },
-      { name: 'block', render: renderOutpointHeight },
-      { name: 'amount', data: 'tokenAmount', render: () => '' },
-      { name: 'dust', data: 'satsAmount', render: renderAmountXEC },
+      { name: 'outpoint', className: "hash", render: window.datatable.renderOutpoint },
+      { name: 'block', render: window.datatable.renderOutpointHeight },
+      { name: 'amount', data: 'tokenAmount', render: window.datatable.renderTokenAmount },
+      { name: 'dust', data: 'satsAmount', render: window.datatable.renderAmountXEC },
       { name: 'responsive', render: () => '' },
     ],
   });
@@ -199,32 +69,13 @@ const datatableTokenOutpoints = tokenUtxos => {
 
 const datatableTokenBalances = tokenBalances => {
   $('#address-token-balances-table').DataTable({
-    searching: false,
-    lengthMenu: [50, 100, 250, 500, 1000],
-    pageLength: DEFAULT_ROWS_PER_PAGE,
-    language: {
-      loadingRecords: '',
-      zeroRecords: '',
-      emptyTable: '',
-    },
+    ...window.datatable.baseConfig,
     data: tokenBalances,
-    order: [ [ 1, 'desc' ] ],
-    responsive: {
-        details: {
-            type: 'column',
-            target: -1
-        }
-    },
-    columnDefs: [ {
-        className: 'dtr-control',
-        orderable: false,
-        targets:   -1
-    } ],
     columns:[
-      { name: 'amount', data: 'tokenAmount', render: renderToken },
+      { name: 'amount', data: 'tokenAmount', render: window.datatable.renderToken },
       { name: 'ticker', data: 'token.tokenTicker' },
       { name: 'name', data: 'token.tokenName' },
-      { name: 'dust', data: 'satsAmount', render: renderAmountXEC },
+      { name: 'dust', data: 'satsAmount', render: window.datatable.renderAmountXEC },
       { name: 'responsive', render: () => '' },
     ],
   });
