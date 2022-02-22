@@ -116,7 +116,6 @@ const scrollToBottom = () => {
   $("html, body").animate({ scrollTop: pageHeight - 50 }, 250);
 };
 
-
 (function(datatable, $) {
   const renderTxHash = hash => {
     return hash.substr(0, 10) + '&hellip;' + hash.substr(60, 4)

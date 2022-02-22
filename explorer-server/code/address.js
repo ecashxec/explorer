@@ -143,6 +143,12 @@ $('#address-token-outpoints-table').on('init.dt', () => {
   updateLoading(false, 'address-token-outpoints-table');
 });
 
+$('.address__menu-tab').click(() => {
+  setTimeout(() => {
+    footerDynamicPositionFix();
+  }, 20)
+});
+
 const getAddressBalances = () => {
   const address = getAddress();
   return fetch(`/api/address/${address}/balances`)
