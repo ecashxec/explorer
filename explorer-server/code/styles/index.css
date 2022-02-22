@@ -528,6 +528,10 @@ table.dataTable.no-footer {
   border-bottom: 3px solid #fb7b81!important;
 }
 
+table.dataTable td.address__txs-table__amount-cell {
+  color: black;
+}
+
 .loader__container {
   width: 100%;
 }

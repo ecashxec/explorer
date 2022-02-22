@@ -15,6 +15,20 @@ const updateLoading = (status, tableId) => {
 const datatableTxs = () => {
   $('#address-txs-table').DataTable({
     ...window.datatable.baseConfig,
+    columnDefs: [
+      ...window.datatable.baseConfig.columnDefs,
+      {
+        targets: -2,
+        createdCell: (td, _cellData, row) => {
+          const isNegative = Math.sign(row.deltaSats);
+          if (isNegative) {
+
+            $(td).css('background-color', 'red')
+          }
+            $(td).css('background-color', 'lightgreen')
+        },
+      },
+    ],
     columns:[
       { name: "age", data: 'timestamp', title: "Age", render: window.datatable.renderAge },
       { name: "timestamp", data: 'timestamp', title: "Date (UTC" + tzOffset + ")", render: window.datatable.renderTimestamp },
@@ -24,8 +38,7 @@ const datatableTxs = () => {
       { name: "fee", title: "Fee [sats]", className: "fee", render: window.datatable.renderFee },
       { name: "numInputs", data: 'numInputs', title: "Inputs" },
       { name: "numOutputs", data: 'numOutputs', title: "Outputs" },
-      { name: "deltaSats", data: 'deltaSats', title: "Amount XEC", render: window.datatable.renderAmountXEC },
-      { name: "token", title: "Amount Token", render: window.datatable.renderTokenAmountTicker },
+      { name: "amount", data: 'deltaSats', title: "Amount", className: 'address__txs-table__amount-cell', render: window.datatable.renderOutput },
       { name: 'responsive', render: () => '' },
     ],
   });
