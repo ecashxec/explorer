@@ -177,6 +177,9 @@ const datatableTxs = () => {
       { name: 'responsive', render: () => '' },
     ],
   });
+
+  params = window.state.getParameters();
+  $('#address-txs-table').dataTable().api().page.len(params.txRows);
 }
 
 const datatableOutpoints = () => {
@@ -214,6 +217,9 @@ const datatableOutpoints = () => {
       { name: 'responsive', render: () => '' },
     ],
   });
+
+  params = window.state.getParameters();
+  $('#outpoints-table').dataTable().api().page.len(params.eCashOutpointsRows);
 }
 
 $('#address-txs-table').on('xhr.dt', () => {
@@ -237,13 +243,26 @@ const goToPage = (event, page) => {
   reRenderPage({ page });
 };
 
-$(document).on('change', '[name="address-txs-table_length"]', event => {
-  reRenderPage({ rows: event.target.value, page: 1 });
+$(document).on('change', '[name*="-table_length"]', event => {
+  reRenderPage({
+    rows: event.target.value,
+    page: 1,
+  });
 });
 
 const reRenderPage = params => {
   if (params) {
-    window.state.updateParameters(params)
+    params = window.state.updateParameters(params);
+  } else {
+    params = window.state.getParameters();
+
+    if (!params.currentTab) {
+      window.state.updateParameters({ currentTab: 'transactions' });
+    }
+  }
+
+  if (params.currentTab) {
+    $('.menu .item').tab('change tab', params.currentTab);
   }
 
   const paginationRequest = window.pagination.generatePaginationRequestOffset();
@@ -257,6 +276,11 @@ $(document).ready(() => {
   datatableTxs();
   datatableOutpoints();
 
-  $('.menu .item').tab();
+  $('.menu .item').tab({
+    onVisible: tabPath => (
+      reRenderPage({ currentTab: tabPath })
+    )
+  });
+
   reRenderPage()
 });

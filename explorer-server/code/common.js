@@ -131,26 +131,84 @@ const scrollToBottom = () => {
     return isNaN(parsedValue) ? fallback : Math.max(parsedValue, 1);
   };
 
+  const handleTabUpdate = params => {
+    if ((!params.page && !params.rows) || !params.currentTab) {
+      return params;
+    }
+
+    switch (params.currentTab) {
+      case 'transactions':
+        params.txPage = validatePaginationInts(params.page, DEFAULT_PAGE);
+        params.txRows = validatePaginationInts(params.rows, DEFAULT_ROWS_PER_PAGE);
+        break;
+
+      case 'outpoints':
+        params.eCashOutpointsPage = validatePaginationInts(params.page, DEFAULT_PAGE);
+        params.eCashOutpointsRows = validatePaginationInts(params.rows, DEFAULT_ROWS_PER_PAGE);
+        break;
+    }
+
+    delete params.page;
+    delete params.rows;
+
+    return params;
+  };
+
+  const handleTabGet = params => {
+    if (!params.currentTab) {
+      return params;
+    }
+
+    switch (params.currentTab) {
+      case 'transactions':
+        params.page = params.txPage;
+        params.rows = params.txRows;
+        break;
+
+      case 'outpoints':
+        params.page = params.eCashOutpointsPage;
+        params.rows = params.eCashOutpointsRows;
+        break;
+    }
+
+    params.page = validatePaginationInts(params.page, DEFAULT_PAGE)
+    params.rows = validatePaginationInts(params.rows, DEFAULT_ROWS_PER_PAGE)
+
+    return params;
+  };
+
   state.getPaginationTotalEntries = () => $('#pagination').data('total-entries');
 
   state.getParameters = () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const page = validatePaginationInts(urlParams.get('page'), DEFAULT_PAGE) - 1;
-    const humanPage = page + 1;
-    const rows = validatePaginationInts(urlParams.get('rows'), DEFAULT_ROWS_PER_PAGE);
-    const order = urlParams.get('order') || DEFAULT_ORDER;
-    const start = parseInt(urlParams.get('start')) || 0;
-    const end = parseInt(urlParams.get('end')) || state.getPaginationTotalEntries();
+    let urlParams;
 
-    return { page, humanPage, rows, order, start, end };
+    urlParams = Object.fromEntries(new URLSearchParams(window.location.search).entries());
+    urlParams = handleTabGet(urlParams);
+
+    const page = validatePaginationInts(urlParams.page, DEFAULT_PAGE);
+    const rows = validatePaginationInts(urlParams.rows, DEFAULT_ROWS_PER_PAGE);
+    const order = urlParams.order || DEFAULT_ORDER;
+    const start = parseInt(urlParams.start) || 0;
+    const end = parseInt(urlParams.end) || state.getPaginationTotalEntries();
+
+    return { ...urlParams, page, rows, order, start, end };
   }
 
   state.updateParameters = params => {
+    let newParams;
+
     const path = window.location.pathname;
     const currentURLParams = Object.fromEntries(new URLSearchParams(window.location.search).entries());
-    const newURLParams = new URLSearchParams({ ...currentURLParams, ...params });
+    newParams = { ...currentURLParams, ...params }
 
+    if (newParams.currentTab) {
+      newParams = handleTabUpdate(newParams)
+    }
+
+    const newURLParams = new URLSearchParams(newParams);
     window.history.pushState('', document.title, `${path}?${newURLParams.toString()}`);
+
+    return Object.fromEntries(newURLParams.entries());
   }
 
   state.updateLoading = status => {
@@ -210,9 +268,9 @@ const scrollToBottom = () => {
   };
 
   pagination.generatePaginationRequestOffset = () => {
-    const { humanPage, rows } = window.state.getParameters();
+    const { page, rows } = window.state.getParameters();
 
-    const offset = (humanPage * rows) - rows;
+    const offset = (page * rows) - rows;
     const take = rows;
 
     return { offset, take };
@@ -310,7 +368,7 @@ const scrollToBottom = () => {
   };
 
   pagination.generatePaginationUIParams = () => {
-    const { humanPage: currentPage, rows } = window.state.getParameters();
+    const { page: currentPage, rows } = window.state.getParameters();
     const totalEntries = window.state.getPaginationTotalEntries();
     const lastPage = Math.ceil(totalEntries / rows);
 
