@@ -104,7 +104,7 @@
               </tr>
               <tr>
                 <td>Tokens burned</td>
-                <td>{{ token_input|render_token_amount(token_meta.decimals) }} {{ ticker }}</td>
+                <td>{{ token_input|render_token_amount(token_meta.decimals)|safe }} {{ ticker }}</td>
               </tr>
             </tbody>
           </table>
