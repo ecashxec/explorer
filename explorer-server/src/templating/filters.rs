@@ -79,6 +79,14 @@ pub fn check_is_token(slp_token: &Option<SlpToken>) -> askama::Result<bool> {
     Ok(slp_token.as_ref().map(|slp| slp.amount > 0 || slp.is_mint_baton).unwrap_or(false))
 }
 
+pub fn check_is_op_return(op: &u8) -> askama::Result<bool> {
+    if *op == 106 {
+        return Ok(true);
+    }
+
+    Ok(false)
+}
+
 pub fn human_time<'a>(timestamp: &'a DateTime<chrono::Utc>) -> askama::Result<HumanTime> {
     Ok(HumanTime::from(*timestamp))
 }
@@ -261,4 +269,13 @@ pub fn render_token_amount(base_amount: &u64, decimals: &u32) -> askama::Result<
     }
     let output = html! { (PreEscaped(render_integer(&integer_part)?)) "." (rendered) };
     Ok(output.into_string())
+}
+
+pub fn render_op_return(script: &Vec<u8>) -> askama::Result<String> {
+    let string = match String::from_utf8(script.to_vec()) {
+        Ok(v) => v,
+        Err(_) => get_script(script)?,
+    };
+
+    Ok(string)
 }

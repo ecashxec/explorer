@@ -84,7 +84,11 @@
       </p>
       <p>
         <strong>Script Decoded</strong>
-        <div class="hex">{{ output_script }}</div>
+        {% if tx_output.pubkey_script[0]|check_is_op_return == true %}
+          <div class="hex">{{ tx_output.pubkey_script|render_op_return }}</div>
+        {% else %}
+          <div class="hex">{{ output_script }}</div>
+        {% endif %}
       </p>
     </td>
   </tr>
