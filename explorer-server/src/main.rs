@@ -100,7 +100,7 @@ async fn main() -> Result<()> {
         });
 
     let data_block_txs =
-        warp::path!("data" / "block" / String / "dat.js")
+        warp::path!("api" / "block" / String / "transactions")
         .and(with_server(&server))
         .and_then(|block_hash: String, server: ServerRef| async move {
             server.data_block_txs(&block_hash).await.map_err(err)

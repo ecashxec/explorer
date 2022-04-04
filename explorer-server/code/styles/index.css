@@ -20,6 +20,10 @@ h1, h2, h3, h4, h5 {
 }
 
 .hidden {
+  visibility: hidden;
+}
+
+.display-none {
   display: none;
 }
 
@@ -72,11 +76,8 @@ h1, h2, h3, h4, h5 {
   word-break: break-all;
 }
 
-#txs-table {
-  height: 600px;
-}
-
-#block-txs #txs-table .webix_view {
+#txs-table .webix_view,
+#block-txs .webix_view {
   font-size: 13px !important;
 }
 
@@ -85,7 +86,8 @@ h1, h2, h3, h4, h5 {
 }
 
 #txs-table .fee-per-byte {
-  text-align: right;
+  margin-left: 3px;
+  color: grey;
 }
 
 #txs-table small {
@@ -428,16 +430,19 @@ table.dataTable.no-footer {
   border-bottom: 0!important;
 }
 
-#blocks-table_length {
+#blocks-table_length,
+#txs-table_length {
   margin-bottom: 10px;
   float: right;
 }
 
-#blocks-table_paginate {
+#blocks-table_paginate,
+#txs-table_paginate {
   display: none;
 }
 
-#blocks-table_info {
+#blocks-table_info,
+#txs-table_info {
   display: none;
 }
 
@@ -476,6 +481,10 @@ table.dataTable.no-footer {
 
 .datatable__block_listing-hover {
   background: rgba(251, 123, 129, 0.1);
+}
+
+.block__tx-header {
+  margin-bottom: -29px!important;
 }
 
 .loader__container {

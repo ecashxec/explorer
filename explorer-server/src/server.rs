@@ -98,26 +98,29 @@ impl Server {
             block_txs.iter()
                 .map(|(tx_hash, tx_meta)| (tx_hash.as_ref(), 0, Some(tx_meta.block_height), tx_meta, (0, 0)))
         ).await?;
-        let encoded_txs = serde_json::to_string(&json_txs.txs)?;
-        let encoded_tokens = serde_json::to_string(&json_txs.tokens)?;
-        let reply = format!(r#"
-            if (window.txData === undefined)
-                window.txData = [];
-            {{
-                var txs = JSON.parse('{encoded_txs}');
-                var tokens = JSON.parse('{encoded_tokens}');
-                var startIdx = window.txData.length;
-                window.txData.length += txs.length;
-                for (var i = 0; i < txs.length; ++i) {{
-                    var tx = txs[i];
-                    tx.token = tx.tokenIdx === null ? null : tokens[tx.tokenIdx];
-                    window.txData[startIdx + i] = tx;
-                }}
-            }}
-        "#, encoded_txs = encoded_txs, encoded_tokens = encoded_tokens);
-        let reply = warp::reply::with_header(reply, "content-type", "application/javascript");
-        let reply = warp::reply::with_header(reply, "last-modified", "Tue, 29 Dec 2020 06:31:27 GMT");
-        Ok(reply)
+
+        let mut txs = Vec::with_capacity(json_txs.txs.len());
+        for transaction in json_txs.txs.iter() {
+            let mut tx: JsonTx = transaction.clone();
+
+            match tx.token_idx {
+                Some(token_idx) => {
+                    tx.token = Some(json_txs.tokens[token_idx].clone());
+                },
+                None => ()
+            }
+
+            txs.push(tx);
+        }
+
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct BlockTxsJsonResponse {
+            data: Vec<JsonTx>,
+        }
+
+        let json_response = BlockTxsJsonResponse { data: txs };
+        Ok(serde_json::to_string(&json_response)?)
     }
 
     async fn json_txs(&self, txs: impl ExactSizeIterator<Item=(&[u8], i64, Option<i32>, &TxMeta, (i64, i64))>) -> Result<JsonTxs> {
@@ -141,6 +144,7 @@ impl Server {
                 token_input: 0,
                 token_output: 0,
                 slp_action: None,
+                token: None,
             };
             let mut tx_token_id = None;
             match &tx_meta.variant {
