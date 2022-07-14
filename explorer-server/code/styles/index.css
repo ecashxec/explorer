@@ -1,11 +1,12 @@
 :root {
   --primary-background: #000c25;
+  --secondary-background: #000c25;
   --accent: #0074c2;
 }
 
 h1, h2, h3, h4, h5 {
   font-family: 'Poppins'!important;
-  color: #161c33;
+  color: #fff !important;
 }
 
 body {
@@ -13,6 +14,10 @@ body {
   font-family: 'Poppins'!important;
   background: var(--primary-background);
   color: #fff;
+}
+
+a {
+  color: var(--accent);
 }
 
 #main {
@@ -156,6 +161,8 @@ body {
   padding: 30px 0;
   min-height: calc(100vh - 100px);
   position: relative;
+  /* background-color: var(--secondary-background); */
+  /* background-color: #ffffff; */
 }
 
 .page_ctn::before{
@@ -164,12 +171,13 @@ body {
   top: 0;
   left: 0;
   width: 100%;
-  height: 400px;
+  height: 600px;
   background: rgb(25,64,139);
   background: -moz-linear-gradient(180deg, rgba(25,64,139,0.5) 0%, rgba(25,64,139,0) 100%);
   background: -webkit-linear-gradient(180deg, rgba(25,64,139,0.5) 0%, rgba(25,64,139,0) 100%);
   background: linear-gradient(180deg, rgba(25,64,139,0.5) 0%, rgba(25,64,139,0) 100%);
   filter: progid:DXImageTransform.Microsoft.gradient(startColorstr="#19408b",endColorstr="#000c25",GradientType=1);
+  z-index: -1;
 }
 
 #footer {
@@ -212,6 +220,14 @@ table.dataTable tbody td {
   font-size: 14px;
 }
 
+table.dataTable tbody td a {
+  font-weight: 600;
+}
+
+table.dataTable tbody td a:hover {
+  text-decoration: underline;
+}
+
 table.dataTable tbody tr {
   background: transparent !important;
 }
@@ -221,7 +237,7 @@ table.dataTable > tbody > tr:last-child > td {
 }
 
 table.dataTable tbody tr:hover {
-  background: rgba(255, 255, 255, 0.1) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
 }
 
 .dtr-control::before {
@@ -260,6 +276,31 @@ table.dataTable thead .sorting {
   color: #fff;
   -webkit-box-shadow: none;
   box-shadow: none;
+}
+
+.ui.segment {
+  position: relative;
+  background: var(--primary-background);
+  -webkit-box-shadow: 0 1px 2px 0 rgb(34 36 38 / 15%);
+  box-shadow: 0 1px 2px 0 rgb(34 36 38 / 15%);
+  margin: 1rem 0;
+  padding: 1em 1em;
+  border-radius: 0.28571429rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff !important;
+}
+
+.ui.table {
+  color: #fff;
+}
+
+.block__detail-table {
+  width: 100%!important;
+  padding: 0 6px 0 6px;
+}
+
+.block__detail-table td {
+  border-color: rgba(255, 255, 255, 0.2) !important;
 }
 
 /*************************************** MOBILE STYLES *****************************************************/
@@ -795,10 +836,10 @@ table.dataTable.no-footer {
   margin-top: 14px;
 }
 
-.block__detail-table {
+/* .block__detail-table {
   width: 100%!important;
   padding: 0 6px 0 6px;
-}
+} */
 
 .loader__container {
   width: 100%;
