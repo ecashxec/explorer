@@ -39,12 +39,12 @@
 
 <body class="{% block body_classes %}{% endblock %}">
   <div id="main">
-    <div class="ui main menu">
-      <a class="header item" href="/">
+    <div class="header-ctn">
+      <a class="header-logo" href="/">
         <img class="logo" src="/assets/logo.png" />
       </a>
 
-      <div class="item">
+     
         <div id="search-box" class="ui transparent icon input">
           <input
             id="search-bar"
@@ -56,9 +56,6 @@
             <i id="#search-button" class="search link icon" onclick="searchButton()"></i>
           </input>
         </div>
-      </div>
-
-      <a class=" right floated item" href="/blocks">Blocks</a>
     </div>
 
     {% block content %}{% endblock %}
