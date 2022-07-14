@@ -98,7 +98,7 @@ const dataTable = () => {
       zeroRecords: '',
       emptyTable: '',
     },
-    order: [ [ 1, 'desc' ] ],
+    order: [ [ 0, 'desc' ] ],
     responsive: {
         details: {
             type: 'column',
@@ -111,13 +111,13 @@ const dataTable = () => {
         targets:   -1
     } ],
     columns: [
-      { name: 'age', data: 'timestamp', orderable: false, render: renderAge },
       { data: 'height', render: renderTemplate },
-      { data: 'numTxs', render: renderNumtTxs },
       { data: 'hash', orderable: false, className: 'hash', render: renderHash },
-      { data: 'size', orderable: false, render: renderSize },
+      { data: 'numTxs', render: renderNumtTxs },
+      { name: 'age', data: 'timestamp', orderable: false, render: renderAge },
       { data: 'difficulty', orderable: false, render: renderDifficulty },
-      { name: 'timestamp', data: 'timestamp', render: renderTimestamp },
+      { data: 'size', orderable: false, render: renderSize },
+      // { name: 'timestamp', data: 'timestamp', render: renderTimestamp },
       { name: 'responsive', render: () => '' },
     ]
   });

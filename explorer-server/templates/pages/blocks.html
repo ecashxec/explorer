@@ -9,7 +9,7 @@
 <div class="page_ctn">
   <div class="ui container">
     {% call loader::render() %}
-    <div class="dataTables_length datatable__length-placeholder" id="blocks-table_length">
+    <!-- <div class="dataTables_length datatable__length-placeholder" id="blocks-table_length">
       <label>
         Show
         <select name="blocks-table_length" aria-controls="blocks-table" class="">
@@ -20,17 +20,17 @@
         </select>
         entries
       </label>
-    </div>
+    </div> -->
     <table id="blocks-table" class="block-listing__datatable dataTable compact responsive nowrap no-footer" style="width: 100%">
       <thead>
           <tr>
-              <th>Age</th>
               <th>Height</th>
-              <th>Txs</th>
               <th>Block Hash</th>
-              <th>Size</th>
+              <th>Txs</th>
+              <th>Age</th>
               <th>Est. Hashrate</th>
-              <th id="date">Date ()</th>
+              <th>Size</th>
+              <!-- <th id="date">Date ()</th> -->
               <th></th>
           </tr>
       </thead>
@@ -40,7 +40,7 @@
   </div>
 
   <div class="ui container">
-    <div id="pagination" class="bottom-pagination" data-total-entries="{{ last_block_height }}">
+    <div id="pagination" data-total-entries="{{ last_block_height }}">
     </div>
     <div class="block-listing__fixed-nav-icon">
       <button class="circular ui icon button" onclick="scrollToBottom()">

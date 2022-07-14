@@ -104,7 +104,7 @@ function toggleTransactionScriptData() {
 }
 
 function minifyHash(hash) {
-  return `${hash.slice(0, 25)}...${hash.slice(39, 64)}`;
+  return `${hash.slice(0, 1)}...${hash.slice(39, 64)}`;
 }
 
 const generateRange = (start, end) => [...Array(end - start + 1)].map((_, i) => start + i);
