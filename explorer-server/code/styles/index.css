@@ -1,7 +1,7 @@
 :root {
   --primary-background: #000c25;
   --secondary-background: #000c25;
-  --accent: #0074c2;
+  --accent: #008fef;
 }
 
 h1, h2, h3, h4, h5 {
@@ -10,7 +10,7 @@ h1, h2, h3, h4, h5 {
 }
 
 body {
-  overflow: hidden;
+  /* overflow: hidden; */
   font-family: 'Poppins'!important;
   background: var(--primary-background);
   color: #fff;
@@ -173,11 +173,25 @@ a {
   width: 100%;
   height: 600px;
   background: rgb(25,64,139);
-  background: -moz-linear-gradient(180deg, rgba(25,64,139,0.5) 0%, rgba(25,64,139,0) 100%);
-  background: -webkit-linear-gradient(180deg, rgba(25,64,139,0.5) 0%, rgba(25,64,139,0) 100%);
-  background: linear-gradient(180deg, rgba(25,64,139,0.5) 0%, rgba(25,64,139,0) 100%);
+  background: -moz-linear-gradient(180deg, rgba(25,64,139,0.8) 0%, rgba(25,64,139,0) 100%);
+  background: -webkit-linear-gradient(180deg, rgba(25,64,139,0.8) 0%, rgba(25,64,139,0) 100%);
+  background: linear-gradient(180deg, rgba(25,64,139,0.8) 0%, rgba(25,64,139,0) 100%);
   filter: progid:DXImageTransform.Microsoft.gradient(startColorstr="#19408b",endColorstr="#000c25",GradientType=1);
   z-index: -1;
+}
+
+.page_ctn::after{
+  content: "";
+  background: url("/assets/network-background2.png") no-repeat;
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 100%;
+  height: 600px;
+  background-size: 700px;
+  background-position: top right;
+  z-index: -1;
+  opacity: 0.5;
 }
 
 #footer {
@@ -286,7 +300,7 @@ table.dataTable thead .sorting {
   margin: 1rem 0;
   padding: 1em 1em;
   border-radius: 0.28571429rem;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.4);
   color: #fff !important;
 }
 
@@ -301,6 +315,35 @@ table.dataTable thead .sorting {
 
 .block__detail-table td {
   border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.hex {
+  font-family: 'IBM Plex Mono', monospace;
+  word-break: break-all;
+  text-align: left;
+}
+
+.ui.styled.accordion, .ui.styled.accordion .accordion, #coins {
+  background: var(--primary-background) !important;
+  border: 1px solid rgba(255, 255, 255, 0.4) !important;
+  color: #fff !important;
+}
+
+.ui.celled.table tr td, .ui.celled.table tr th {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.ui.styled.accordion .accordion .title, .ui.styled.accordion .title {
+  color: #fff !important;
+}
+
+.dataTables_wrapper .dataTables_length select {
+  border: 1px solid #fff;
+  color: #fff;
+}
+
+.dataTables_length {
+  color: #fff !important;
 }
 
 /*************************************** MOBILE STYLES *****************************************************/
@@ -401,12 +444,6 @@ table.dataTable thead .sorting {
 .hash {
   font-family: 'Ubuntu Mono';
 } */
-
-.hex {
-  font-family: 'Ubuntu Mono';
-  word-break: break-all;
-  text-align: left;
-}
 
 #txs-table .webix_view,
 #block-txs .webix_view {
