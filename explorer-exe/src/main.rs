@@ -13,7 +13,8 @@ async fn main() -> Result<()> {
     let config = config::load_config(&config_string)?;
 
     let chronik = ChronikClient::new(config.chronik_api_url)?;
-    let server = Arc::new(Server::setup(chronik).await?);
+    let base_folder = config.base_folder.unwrap_or_else(|| "../explorer-server".into());
+    let server = Arc::new(Server::setup(chronik, base_folder).await?);
     let app = server.router().layer(Extension(server));
 
     axum::Server::bind(&config.host)
