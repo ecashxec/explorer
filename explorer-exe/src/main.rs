@@ -7,7 +7,9 @@ use explorer_server::{config, server::Server};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let config_string = fs::read_to_string("config.toml")?;
+    let config_path = std::env::args().nth(1);
+    let config_path = config_path.as_deref().unwrap_or("config.toml");
+    let config_string = fs::read_to_string(config_path)?;
     let config = config::load_config(&config_string)?;
 
     let chronik = ChronikClient::new(config.chronik_api_url)?;
