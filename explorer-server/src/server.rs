@@ -31,16 +31,16 @@ use crate::{
 
 pub struct Server {
     chronik: ChronikClient,
-    base_folder: PathBuf,
+    base_dir: PathBuf,
     satoshi_addr_prefix: &'static str,
     tokens_addr_prefix: &'static str,
 }
 
 impl Server {
-    pub async fn setup(chronik: ChronikClient, base_folder: PathBuf) -> Result<Self> {
+    pub async fn setup(chronik: ChronikClient, base_dir: PathBuf) -> Result<Self> {
         Ok(Server {
             chronik,
-            base_folder,
+            base_dir,
             satoshi_addr_prefix: "ecash",
             tokens_addr_prefix: "etoken",
         })
@@ -59,9 +59,9 @@ impl Server {
             .route("/api/blocks/:start_height/:end_height", get(data_blocks))
             .route("/api/block/:hash/transactions", get(data_block_txs))
             .route("/api/address/:hash/transactions", get(data_address_txs))
-            .nest("/code", serve_files(&self.base_folder.join("code")))
-            .nest("/assets", serve_files(&self.base_folder.join("assets")))
-            .nest("/favicon.ico", serve_files(&self.base_folder.join("assets").join("favicon.png")))
+            .nest("/code", serve_files(&self.base_dir.join("code")))
+            .nest("/assets", serve_files(&self.base_dir.join("assets")))
+            .nest("/favicon.ico", serve_files(&self.base_dir.join("assets").join("favicon.png")))
     }
 }
 

@@ -7,7 +7,7 @@ use serde::Deserialize;
 pub struct Config {
     pub host: SocketAddr,
     pub chronik_api_url: String,
-    pub base_folder: Option<PathBuf>,
+    pub base_dir: Option<PathBuf>,
 }
 
 pub fn load_config(config_string: &str) -> Result<Config> {
