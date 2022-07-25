@@ -17,7 +17,7 @@ const renderHash = (hash, _type, _row, meta) => {
   let minifiedHash = minifyHash(hash)
 
   if (isHidden) {
-    minifiedHash = minifiedHash.split('.')[0];
+    minifiedHash = '0...' + minifiedHash.slice(minifiedHash.length - 6);
   }
 
   return `<a href="/block/${hash}">${minifiedHash}</a>`
