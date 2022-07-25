@@ -128,7 +128,7 @@ const renderFee = (_value, _type, row) => {
     return '<div class="ui green horizontal label">Coinbase</div>';
   }
 
-  const fee = renderInteger(row.stats.satsInput - row.stats.satsOutput);
+  const fee = renderInteger((row.stats.satsInput - row.stats.satsOutput) / 100);
   let markup = '';
 
   markup += `<span>${fee}</span>`
@@ -199,7 +199,7 @@ const datatable = () => {
       { name: "txHash", data: 'txHash', title: "Transaction ID", className: "hash", render: renderTxID },
       { name: "blockHeight", title: "Block Height", render: renderBlockHeight },
       { name: "size", data: 'size', title: "Size", render: renderSize },
-      { name: "fee", title: "Fee [sats]", className: "fee", render: renderFee },
+      { name: "fee", title: "Fee", className: "fee", render: renderFee },
       { name: "numInputs", data: 'numInputs', title: "Inputs" },
       { name: "numOutputs", data: 'numOutputs', title: "Outputs" },
       { name: "deltaSats", data: 'deltaSats', title: "Amount XEC", render: renderAmountXEC },
