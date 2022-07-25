@@ -61,18 +61,18 @@
     </div>
 
     <h2>General Details</h2>
-    <div class="ui grid segment tx-details">
-      <table class="tx-details-table ui very basic table">
-        <tbody>
-          <tr>
-            <td>Age</td>
-            <td>{{ timestamp|human_time }}</td>
-          </tr>
+    <div class="tx-details-ctn">
+      <div class="tx-details-half">
 
-          <tr>
-            <td>Block</td>
-            <td>
-              {% match tx.block %}
+        <div class="tx-details-row">
+          <div>Age</div>
+          <div>{{ timestamp|human_time }}</div>
+        </div>
+
+        <div class="tx-details-row">
+          <div>Block</div>
+          <div>
+            {% match tx.block %}
                 {% when Some with (block_meta) %}
                   <a href="/block/{{ block_meta.hash|to_le_hex }}">
                     {{ block_meta.height|to_i128|render_integer|safe }}
@@ -81,68 +81,61 @@
                 {% when None %}
                   Not mined yet
               {% endmatch %}
-            </td>
-          </tr>
+          </div>
+        </div>
 
-          <tr>
-            <td>Unix Timestamp</td>
-            <td>
-              {% match tx.block %}
-                {% when Some with (block_meta) %}
-                  {{ block_meta.timestamp|to_i128|render_integer|safe }}
-                {% when None %}
-                  Not mined yet
-              {% endmatch %}
-            </td>
-          </tr>
+        <div class="tx-details-row">
+          <div>Unix Timestamp</div>
+          <div>{% match tx.block %}
+            {% when Some with (block_meta) %}
+              {{ block_meta.timestamp|to_i128|render_integer|safe }}
+            {% when None %}
+              Not mined yet
+          {% endmatch %}</div>
+        </div>
 
-          <tr>
-            <td>Size</td>
-            <td>{{ tx.size|u32_to_u64|render_human_size }} ({{ tx.size|to_i128|render_integer_smallify|safe }} B)</td>
-          </tr>
+        <div class="tx-details-row">
+          <div>Size</div>
+          <div>{{ tx.size|u32_to_u64|render_human_size }} ({{ tx.size|to_i128|render_integer_smallify|safe }} B)</div>
+        </div>
 
-          <tr>
-            <td>Locktime</td>
-            <td>{{ tx.lock_time|to_i128|render_integer|safe }}</td>
-          </tr>
-        </tbody>
-      </table>
+        <div class="tx-details-row">
+          <div>Locktime</div>
+          <div>{{ tx.lock_time|to_i128|render_integer|safe }}</div>
+        </div>
+      </div>
 
-      <div class="ui vertical divider tx-details-table__divider"></div>
-
-      <table class="tx-details-table ui very basic table">
-        <tbody>
-          <tr>
-            <td>Mined on</td>
+      <div class="tx-details-half">
+        <div class="tx-details-row">
+          <div>Mined On</div>
             {% match tx.block %}
               {% when Some with (block_meta) %}
-                <td class="moment__timestamp" data-timestamp="{{ block_meta.timestamp }}"></td>
+                <div class="moment__timestamp" data-timestamp="{{ block_meta.timestamp }}"></div>
               {% when None %}
-                <td>Not mined yet</td>
+                <div>Not mined yet</div>
             {% endmatch %}
-          </tr>
+        </div>
 
-          <tr>
-            <td>Total Input</td>
-            <td>{{ sats_input|render_sats|safe }} XEC</td>
-          </tr>
+        <div class="tx-details-row">
+          <div>Total Input</div>
+          <div>{{ sats_input|render_sats|safe }} XEC</div>
+        </div>
 
-          <tr>
-            <td>Total Output</td>
-            <td>{{ sats_output|render_sats|safe }} XEC</td>
-          </tr>
+        <div class="tx-details-row">
+          <div>Total Output</div>
+          <div>{{ sats_output|render_sats|safe }} XEC</div>
+        </div>
 
-          <tr>
-            <td>Fee</td>
-            <td>{{ (sats_input - sats_output)|max(0)|render_sats|safe }} XEC</td>
-          </tr>
+        <div class="tx-details-row">
+          <div>Fee</div>
+          <div>{{ (sats_input - sats_output)|max(0)|render_sats|safe }} XEC</div>
+        </div>
 
-          <tr>
-            <td>Version</td>
-            <td>{{ tx.version }}</td>
-          </tr>
-        </tbody>
-      </table>
+        <div class="tx-details-row">
+          <div>Version</div>
+          <div>{{ tx.version }}</div>
+        </div>
+      </div>
     </div>
 
     {% if is_token %}
