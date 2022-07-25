@@ -1017,3 +1017,25 @@ table.dataTable.no-footer {
             transform: rotateX(360deg);
   }
 }
+
+.ui.slider.checkbox .box, .ui.slider.checkbox label {
+  padding-left: 4.5rem;
+  line-height: 1rem;
+  color: #fff !important;
+}
+
+body .ui.slider.checkbox input:checked~.box, .ui.slider.checkbox input:checked~label {
+  color: #fff !important;
+}
+
+.ui.slider.checkbox input:checked~.box:before, .ui.slider.checkbox input:checked~label:before {
+  background-color: #fff !important;
+}
+
+@media (max-width: 1000px) {
+
+.ui[class*="three column"].grid>.column:not(.row), .ui[class*="three column"].grid>.row>.column {
+  width: 100%;
+}
+
+}
