@@ -436,7 +436,7 @@ impl Server {
         if address.len() > 60 {
             bail!("Invalid address length");
         }
-        let png = qrcode_generator::to_png_to_vec(address, QrCodeEcc::Quartile, 160)?;
+        let png = qrcode_generator::to_png_to_vec(address, QrCodeEcc::Quartile, 140)?;
         Ok(png)
     }
 

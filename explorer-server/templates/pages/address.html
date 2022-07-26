@@ -5,83 +5,70 @@
 {% block content %}
 <div class="page_ctn">
   <div class="ui container">
-    <table id="coins" class="ui table">
-      <tr>
-        <td colspan="20">
-          <div class="address-sats">
-            <div class="balance">
-              <h4>Balance</h4>
-              <h1>
-                {{ total_xec|render_sats|safe }} XEC
-                <a class="show-coins" onclick="$('#sats-coins').toggle(); loadSatsTable();">
-                  Show Coins <i class="icon chevron circle down"></i>
-                </a>
-              </h1>
 
-              {% if token_dust > 0 %}
-                <h3>+{{ token_dust|render_sats|safe }} XEC in token dust</h3>
-              {% endif %}
+    <div class="address-ctn">
+      <div class="address-toprow-ctn">
+        <div class="address-info-ctn">
+          <h4>Address</h4>
+          <h2 id="address">{% if sats_address == address %}{{ sats_address }}{% else %}{{ token_address }}{% endif %}</h2>
+      
+          <h4>Balance</h4>
+          <h2>{{ total_xec|render_sats|safe }} XEC</h2>
 
-              {% if address_num_txs == 1 %}
-                {{ address_num_txs }} Transaction
-              {% else %}
-                {{ address_num_txs }} Transactions
-              {% endif %}
+          {% if token_dust > 0 %}
+            <h3>+{{ token_dust|render_sats|safe }} XEC in token dust</h3>
+          {% endif %}
 
-              <table class="addresses ui table very basic collapsing celled compact">
-                <tbody>
-                  <tr>
-                    <td>Cash Address</td>
-                    <td>{{ sats_address }}</td>
-                  </tr>
+          <h4>Transactions</h4>
+          <h2>{{ address_num_txs }}</h2>
 
-                  <tr>
-                    <td>Token Address</td>
-                    <td>{{ token_address }}</td>
-                  </tr>
+        </div>
 
-                  <tr>
-                    <td>Legacy Address</td>
-                    <td>{{ legacy_address }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+        <div class="address-qr-ctn">
+          <div class="qr-code">
+            <img id="qr-code-img" src="/address-qr/{{ address }}" />
+          </div>
 
-            <div class="qr-code">
-              <img id="qr-code-img" src="/address-qr/{{ address }}" />
-            </div>
-
-            {% if sats_address == address %}
+          <div class="select-address-ctn">
+              {% if sats_address == address %}
               <div class="qr-kind" id="selected-address-1">
             {% else %}
               <div class="qr-kind" id="selected-address-2">
             {% endif %}
               <div class="address1">
-                <a onclick="$('#qr-code-img').attr('src', '/address-qr/{{ sats_address }}'); $('.qr-kind').attr('id', 'selected-address-1')"}>
+                <a onclick="$('#qr-code-img').attr('src', '/address-qr/{{ sats_address }}'); $('.qr-kind').attr('id', 'selected-address-1'); $('#address').html('{{ sats_address }}');"}>
                     XEC Address
                 </a>
               </div>
 
               <div class="address2">
-                <a onclick="$('#qr-code-img').attr('src', '/address-qr/{{ token_address }}'); $('.qr-kind').attr('id', 'selected-address-2')"}>
+                <a onclick="$('#qr-code-img').attr('src', '/address-qr/{{ token_address }}'); $('.qr-kind').attr('id', 'selected-address-2');$('#address').html('{{ token_address }}');"}>
                     eToken Address
                 </a>
               </div>
 
               <div class="address3">
-                <a onclick="$('#qr-code-img').attr('src', '/address-qr/{{ legacy_address }}'); $('.qr-kind').attr('id', 'selected-address-3')"}>
+                <a onclick="$('#qr-code-img').attr('src', '/address-qr/{{ legacy_address }}'); $('.qr-kind').attr('id', 'selected-address-3');$('#address').html('{{ legacy_address }}');"}>
                     Legacy Address
                 </a>
               </div>
             </div>
-          </div>
+          </div> <!-- End select address ctn-->
+       
+        </div>
 
-          <div id="sats-coins" style="display: none;">
-            <div id="sats-coins-table"></div>
-          </div>
-        </td>
-      </tr>
+      </div>   <!-- End Top Row -->
+
+      <div class="address-ctn-divider"></div>
+
+      <a class="show-coins" onclick="$('#sats-coins').toggle(); loadSatsTable();">
+        Show Coins <i class="icon chevron circle down"></i>
+      </a>
+
+      <div id="sats-coins" style="display: none;">
+        <div id="sats-coins-table"></div>
+      </div>
+       
 
       {% for (token_id, json_balance) in json_balances %}
         {% if token_id != "main" %}
@@ -125,7 +112,8 @@
           {% endmatch %}
         {% endif %}
       {% endfor %}
-    </table>
+
+    </div>
 
     <table id="address-txs-table" class="block-listing__datatable dataTable compact responsive nowrap no-footer" style="width: 100%">
       <thead>
