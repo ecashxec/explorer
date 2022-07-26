@@ -778,11 +778,53 @@ table.tx-details-table tr:last-child td {
   width: 47.5%;
 }
 
-.tx-transaction__toggle-wrapper {
+.toggle-wrapper {
   display: flex;
   height: 100%;
   flex-direction: row;
   justify-content: flex-end;
+  align-items: center;
+  font-size: 14px;
+}
+
+.toggle_btn {
+  --toggle-width: 35px;
+  --toggle-height: 20px;
+  --toggle-padding: 2px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  font-size: 1.5rem;
+  line-height: 1;
+  width: var(--toggle-width);
+  height: var(--toggle-height);
+  padding: var(--toggle-padding);
+  border: 0;
+  border-radius: calc(var(--toggle-width) / 2);
+  cursor: pointer;
+  background: #fff;
+  transition: background 0.25s ease-in-out;
+  margin-right: 10px;
+}
+
+.toggle_btn span {
+  position: absolute;
+  top: var(--toggle-padding);
+  left: var(--toggle-padding);
+  width: calc(var(--toggle-height) - (var(--toggle-padding) * 2));
+  height: calc(var(--toggle-height) - (var(--toggle-padding) * 2));
+  border-radius: 50%;
+  background: var(--accent);
+  transition: all ease-in-out 200ms;
+}
+
+.toggle_btn:hover span {
+  background: var(--accent);
+}
+
+.toggle_btn .switch {
+  transform: translate3d(calc(var(--toggle-width) - var(--toggle-height)), 0, 0);
 }
 
 .ui.slider.checkbox.tx-transaction__toggle {

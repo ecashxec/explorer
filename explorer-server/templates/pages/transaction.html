@@ -18,11 +18,15 @@
       </div>
 
       <div class="six wide column">
-        <div class="tx-transaction__toggle-wrapper">
-          <div class="ui slider checkbox tx-transaction__toggle">
-            <input type="checkbox" onclick="$('#raw-hex').toggle()" />
-            <label>Show raw hex</label>
-          </div>
+        <div class="toggle-wrapper">
+          <button 
+              type="button"
+              onclick="$('#raw-hex').toggle();$('#showhash').toggleClass('switch');"
+              class="toggle_btn"
+          >
+            <span id="showhash"></span>
+          </button>
+          Raw Hex
         </div>
       </div>
     </div>
@@ -151,11 +155,15 @@
       </div>
 
       <div class="six wide column">
-        <div class="tx-transaction__toggle-wrapper">
-          <div class="ui slider checkbox tx-transaction__toggle">
-            <input type="checkbox" onclick="toggleTransactionScriptData()">
-            <label>Show all scripts</label>
-          </div>
+        <div class="toggle-wrapper">
+          <button 
+              type="button"
+              onclick="toggleTransactionScriptData();$('#showscripts').toggleClass('switch');"
+              class="toggle_btn"
+          >
+            <span id="showscripts"></span>
+          </button>
+          All Scripts
         </div>
       </div>
     </div>
