@@ -110,8 +110,13 @@ const renderTimestamp = timestamp => {
   return moment(timestamp * 1000).format('ll, LTS');
 };
 
-const renderTxID = txHash => {
-  return '<a href="/tx/' + txHash + '">' + renderTxHash(txHash) + '</a>';
+const renderTxID = (data) => {
+  if (data.timestamp == 0) {
+  return '<a style="color:#CD0BC3" href="/tx/' + data.txHash + '">' + renderTxHash(data.txHash) + '</a>';
+  }
+  else {
+    return '<a href="/tx/' + data.txHash + '">' + renderTxHash(data.txHash) + '</a>';
+  }
 };
 
 const renderBlockHeight = (_value, _type, row) => {
@@ -196,7 +201,7 @@ const datatable = () => {
     columns:[
       { name: "age", data: 'timestamp', title: "Age", render: renderAge },
       { name: "timestamp", data: 'timestamp', title: "Date (UTC" + tzOffset + ")", render: renderTimestamp },
-      { name: "txHash", data: 'txHash', title: "Transaction ID", className: "hash", render: renderTxID },
+      { name: "txHash", data: {txHash: 'txHash', timestamp: 'timestamp'}, title: "Transaction ID", className: "hash", render: renderTxID },
       { name: "blockHeight", title: "Block Height", render: renderBlockHeight },
       { name: "size", data: 'size', title: "Size", render: renderSize },
       { name: "fee", title: "Fee", className: "fee", render: renderFee },

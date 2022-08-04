@@ -1,4 +1,11 @@
-const renderHash = hash => '<a href="/tx/' + hash + '">' + hash + '</a>';
+const renderHash = (data) => {
+  if (data.timestamp == 0) {
+  return '<a style="color:#CD0BC3" href="/tx/' + data.txHash + '">' + data.txHash + '</a>';
+  }
+  else {
+    return '<a href="/tx/' + data.txHash + '">' + data.txHash + '</a>';
+  }
+};
 const renderSize = size => formatByteSize(size);
 const renderFee = (_value, _type, row) => {
   console.log(row)
@@ -80,7 +87,7 @@ const datatable = () => {
         targets:   -1
     } ],
     columns: [
-      { data: 'txHash', title: 'ID', className: 'hash', render: renderHash },
+      { data: {txHash: 'txHash', timestamp:'timestamp'}, title: 'ID', className: 'hash', render: renderHash },
       { data: 'size', title: 'Size', render: renderSize, className: 'text-right' },
       { name: 'fee', title: 'Fee', css: 'fee', render: renderFee, className: 'text-right' },
       { data: 'numInputs', title: 'Inputs', className: 'text-right' },

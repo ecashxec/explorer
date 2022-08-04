@@ -591,9 +591,13 @@ table.dataTable thead .sorting {
   margin-top: 0px;
 }
 
-.balance h1 .show-coins {
-  font-size: 20px;
-  margin-left: 25px;
+.show-coins {
+  cursor: pointer;
+  width: fit-content;
+  user-select: none;
+}
+.show-coins:hover {
+ filter: brightness(1.2);
 }
 
 .addresses {
@@ -1133,6 +1137,12 @@ body .ui.slider.checkbox input:checked~.box, .ui.slider.checkbox input:checked~l
 
 .qr-code {
   margin-right: 15px;
+}
+
+.address1,
+.address2,
+.address3 {
+  cursor: pointer;
 }
 
 .qr-kind > .address1, .qr-kind > .address2 {
