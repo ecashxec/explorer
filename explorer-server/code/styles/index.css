@@ -776,9 +776,13 @@ table.tx-details-table tr:last-child td {
   border: 0;
   border-radius: calc(var(--toggle-width) / 2);
   cursor: pointer;
-  background: #fff;
+  background: rgb(188, 188, 188);
   transition: background 0.25s ease-in-out;
   margin-right: 10px;
+}
+
+.toggle_btn-switch {
+  background: var(--accent);
 }
 
 .toggle_btn span {
@@ -788,12 +792,8 @@ table.tx-details-table tr:last-child td {
   width: calc(var(--toggle-height) - (var(--toggle-padding) * 2));
   height: calc(var(--toggle-height) - (var(--toggle-padding) * 2));
   border-radius: 50%;
-  background: var(--accent);
+  background: #FFF;
   transition: all ease-in-out 200ms;
-}
-
-.toggle_btn:hover span {
-  background: var(--accent);
 }
 
 .toggle_btn .switch {

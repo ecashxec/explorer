@@ -21,12 +21,13 @@
         <div class="toggle-wrapper">
           <button 
               type="button"
-              onclick="$('#raw-hex').toggle();$('#showhash').toggleClass('switch');"
+              onclick="$('.advanced-toggle').toggle();$('#showhash').toggleClass('switch');$('#toggle-advanced').toggleClass('toggle_btn-switch');toggleTransactionScriptData();"
               class="toggle_btn"
+              id="toggle-advanced"
           >
             <span id="showhash"></span>
           </button>
-          Raw Hex
+          Advanced
         </div>
       </div>
     </div>
@@ -59,9 +60,31 @@
       </table>
     </div>
 
-    <div id="raw-hex" class="ui segment" style="display: none;">
-      <h4>Raw Transaction Hex</h4>
-      <div class="hex">{{ raw_tx }}</div>
+    <div id="advanced" class="ui segment advanced-toggle" style="display: none;">
+      <h4>Advanced</h4>
+      <div class="content">
+        <table class="ui very basic collapsing celled table">
+          <tbody>
+            <tr>
+              <td>Raw Transcation Hex</td>
+              <td>
+                <div class="hex">{{ raw_tx }}</div>
+              </td>
+            </tr>
+            <tr>
+              <td>Locktime</td>
+              <td>{{ tx.lock_time|to_i128|render_integer|safe }}</td>
+            </tr>
+
+            <tr>
+              <td>Version</td>
+              <td>
+                <div class="hex">{{ tx.version }}</div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <h2>General Details</h2>
@@ -103,10 +126,6 @@
           <div>{{ tx.size|u32_to_u64|render_human_size }} ({{ tx.size|to_i128|render_integer_smallify|safe }} B)</div>
         </div>
 
-        <div class="tx-details-row">
-          <div>Locktime</div>
-          <div>{{ tx.lock_time|to_i128|render_integer|safe }}</div>
-        </div>
       </div>
 
       <div class="tx-details-half">
@@ -135,10 +154,6 @@
           <div>{{ (sats_input - sats_output)|max(0)|render_sats|safe }} XEC</div>
         </div>
 
-        <div class="tx-details-row">
-          <div>Version</div>
-          <div>{{ tx.version }}</div>
-        </div>
       </div>
     </div>
 
@@ -154,18 +169,6 @@
         <h2>Transaction</h2>
       </div>
 
-      <div class="six wide column">
-        <div class="toggle-wrapper">
-          <button 
-              type="button"
-              onclick="toggleTransactionScriptData();$('#showscripts').toggleClass('switch');"
-              class="toggle_btn"
-          >
-            <span id="showscripts"></span>
-          </button>
-          All Scripts
-        </div>
-      </div>
     </div>
 
     <div class="ui grid segment">
