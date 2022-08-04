@@ -21,7 +21,6 @@
         <div class="toggle-wrapper">
           <button 
               type="button"
-              onclick="$('.advanced-toggle').toggle();$('#showhash').toggleClass('switch');$('#toggle-advanced').toggleClass('toggle_btn-switch');toggleTransactionScriptData();"
               class="toggle_btn"
               id="toggle-advanced"
           >
@@ -205,4 +204,37 @@
 </div>
 
   <script type="text/javascript" src="/code/timestamps.js?hash=80d7734"></script>
+  <script type="text/javascript">
+    const toggleBtn = document.getElementById("toggle-advanced");
+    let advancedMode = localStorage.getItem("advanced");
+
+    const enableAdvanced = () => {
+      $('.advanced-toggle').toggle();
+      $('#showhash').toggleClass('switch');
+      $('#toggle-advanced').toggleClass('toggle_btn-switch');
+      toggleTransactionScriptData();
+      localStorage.setItem("advanced", "enabled");
+    };
+
+    const disableAdvanced = () => {
+      $('.advanced-toggle').toggle();
+      $('#showhash').toggleClass('switch');
+      $('#toggle-advanced').toggleClass('toggle_btn-switch');
+      toggleTransactionScriptData();
+      localStorage.setItem("advanced", "disabled");
+    };
+
+    if (advancedMode === "enabled") {
+      enableAdvanced(); // set state of darkMode on page load
+    }
+
+    toggleBtn.addEventListener("click", (e) => {
+      advancedMode = localStorage.getItem("advanced"); // update darkMode when clicked
+      if (advancedMode === "disabled") {
+        enableAdvanced();
+      } else {
+        disableAdvanced();
+      }
+    });
+  </script>
 {% endblock %}
