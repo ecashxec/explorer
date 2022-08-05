@@ -1221,7 +1221,7 @@ option, select > option {
 }
 
 .input-ctn, .output-ctn {
-  width: 100%;
+  width: 50%;
 }
 
 .output-ctn h4 {
@@ -1310,6 +1310,14 @@ option, select > option {
   text-align: right !important;
 }
 
+.coinbase-row {
+  height: 40px;
+}
+
+.coinbase-row + .tx-transaction__script-data {
+  padding-left: 0;
+}
+
 @media (max-width: 1000px) {
 
 .ui[class*="three column"].grid>.column:not(.row), .ui[class*="three column"].grid>.row>.column {
@@ -1341,6 +1349,10 @@ option, select > option {
 
 .input-output-row {
   flex-wrap: wrap;
+}
+
+.input-ctn, .output-ctn {
+  width: 100%;
 }
 
 .input-output-arrow {

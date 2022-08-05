@@ -7,7 +7,9 @@
     {% match input.prev_out %}
       {% when Some with (prev_out) %}
         {% if prev_out|check_is_coinbase %}
+        <div class="input-row coinbase-row">
           <div class="ui green horizontal label">Coinbase</div>
+        </div>
        
           
         {% else %}
@@ -52,9 +54,7 @@
 
          
          
-        {% endif %}
-      {% when None %}
-    {% endmatch %}
+     
 
   
       <div class="input-hex">
@@ -87,6 +87,9 @@
       </div>
     </div>
   </div>
+{% endif %}
+{% when None %}
+{% endmatch %}
 
   <div class="tx-transaction__script-data display-none">
    
