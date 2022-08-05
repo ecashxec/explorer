@@ -1187,6 +1187,129 @@ option, select > option {
   color: #fff !important;
 }
 
+.input-output-ctn {
+  position: relative;
+  background: var(--primary-background);
+  -webkit-box-shadow: 0 1px 2px 0 rgb(34 36 38 / 15%);
+  box-shadow: 0 1px 2px 0 rgb(34 36 38 / 15%);
+  margin: 1rem 0;
+  padding: 1em 1em;
+  border-radius: 0.28571429rem;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #fff !important;
+  /* display: flex;
+  flex-wrap: wrap; */
+}
+
+.input-output-arrow {
+  height: 50px;
+  width: 35px;
+  align-self: center;
+  display: flex;
+  align-items: center;
+}
+
+.input-output-arrow img {
+ width: 100%;
+ filter: invert(1);
+ opacity: 0.3;
+}
+
+.input-output-row {
+  display: flex;
+  flex-wrap: nowrap;
+}
+
+.input-ctn, .output-ctn {
+  width: 100%;
+}
+
+.output-ctn h4 {
+  text-align: right;
+}
+
+.input-row, .output-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.output-row {
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.input-row-section1 {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid rgba(255, 255, 255, 0.4);
+  padding: 0 5px 0 0;
+  margin-right: 10px;
+  align-items: center;
+}
+
+.output-row-section2 {
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid rgba(255, 255, 255, 0.4);
+  padding: 0 0 0 5px;
+  margin-left: 10px;
+  align-items: center;
+}
+
+.input-row-section2, .output-row-section1 {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.input-hex {
+  font-family: 'IBM Plex Mono', monospace;
+  word-break: break-all;
+}
+
+.input-hex-address {
+  color: var(--accent);
+  font-weight: bold;
+  word-break: break-all;
+}
+
+.input-hex-address:hover {
+  text-decoration: underline;
+}
+
+.tx-transaction__script-data {
+  padding-left: 36px;
+  font-size: 12px;
+  border-radius: 5px;
+  margin-bottom: 20px;
+}
+
+.tx-transaction__script-data div {
+  opacity: 0.5;
+}
+
+.tx-transaction__script-data h4 {
+  margin: 0;
+  padding: 0;
+  font-size: 14px !important;
+  font-weight: normal;
+  margin-top: -10px;
+}
+
+.margintopscript {
+  margin-top: 10px !important;
+}
+
+.output-script-text {
+  padding-left: 0 !important;
+  padding-right: 36px;
+}
+
+.output-script-text div {
+  text-align: right !important;
+}
+
 @media (max-width: 1000px) {
 
 .ui[class*="three column"].grid>.column:not(.row), .ui[class*="three column"].grid>.row>.column {
@@ -1214,6 +1337,22 @@ option, select > option {
 .address-info-ctn {
   padding-right: 0;
   margin-bottom: 10px;
+}
+
+.input-output-row {
+  flex-wrap: wrap;
+}
+
+.input-output-arrow {
+  height: 50px;
+  width: 100%;
+  justify-content: center;
+  margin: 20px 0;
+}
+
+.input-output-arrow img {
+ transform: rotate(90deg);
+ width: 40px;
 }
 
 }

@@ -3,31 +3,39 @@
   {% let destination = input.output_script|destination_from_script(is_token) %}
   {% let decoded_input_script = input.input_script|get_script %}
 
-  <tr>
+  <div>
     {% match input.prev_out %}
       {% when Some with (prev_out) %}
         {% if prev_out|check_is_coinbase %}
-          <td class="one wide">
-            <div class="ui green horizontal label">Coinbase</div>
-          </td>
+          <div class="ui green horizontal label">Coinbase</div>
+       
+          
         {% else %}
-          <td class="one wide">
+        <div class="input-row">
+
+          <!-- section 1 -->
+          <div class="input-row-section1">
+            <div>
+              {{ index }}
+            </div>
             <a href="/tx/{{ prev_out.txid|to_le_hex }}">
               <i class="horizontally flipped icon sign out"></i>
             </a>
-          </td>
-          <td class="one wide">
-            {{ index }}
-          </td>
-          <td class="one wide">
+          </div>
+          
+          <!-- section 2 -->
+      
+          <!-- <div>
             {% match input.slp_token %}
               {% when Some with (_) %}
                 <img src="/assets/slp-logo.png" />
               {% when None %}
             {% endmatch %}
-          </td>
-          <td class="seven wide">
-            <div class="destination hex">
+          </div> -->
+
+          <div class="input-row-section2">
+         
+            <div class="input-hex input-hex-address">
               {% match destination %}
                 {% when Destination::Address with (address) %}
                   <a href="/address/{{ address.as_str() }}">
@@ -41,13 +49,15 @@
                   Unreachable
               {% endmatch %}
             </div>
-          </td>
+
+         
+         
         {% endif %}
       {% when None %}
     {% endmatch %}
 
-    <td colspan="2">
-      <div class="amount hex">
+  
+      <div class="input-hex">
         {% match input.slp_token %}
           {% when Some with (slp_token) %}
             {% match tx.slp_tx_data %}
@@ -75,18 +85,18 @@
             {{ input.value|render_sats|safe }} XEC
         {% endmatch %}
       </div>
-    </td>
-  </tr>
-  <tr class="tx-transaction__script-data display-none">
-    <td colspan="6">
-      <p>
-        <strong>Script Hex</strong>
-        <div class="hex">{{ input.input_script|hexify_u8_vector }}</div>
-      </p>
-      <p>
-        <strong>Script Decoded</strong>
-        <div class="hex">{{ decoded_input_script }}</div>
-      </p>
-    </td>
-  </tr>
+    </div>
+  </div>
+
+  <div class="tx-transaction__script-data display-none">
+   
+      <h4>Script Hex</h4>
+      <div class="hex">{{ input.input_script|hexify_u8_vector }}</div>
+
+      <h4 class="margintopscript">Script Decoded</h4>
+      <div class="hex">{{ decoded_input_script }}</div>
+
+  </div>
+  
+</div>
 {% endmacro %}

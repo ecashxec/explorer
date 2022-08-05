@@ -3,20 +3,17 @@
   {% let destination = output.output_script|destination_from_script(is_token) %}
   {% let decoded_output_script = output.output_script|get_script %}
 
-  <tr>
-    <td class="one wide">{{ index }}</td>
-    <td class="one wide">
-      {% if is_token %}
-        <img src="/assets/slp-logo.png" />
-      {% endif %}
-    </td>
-    <td class="seven wide">
-      <div class="destination hex">
+  <div>
+    <div class="output-row">
+    
+      <div class="output-row-section1">
         {% match destination %}
           {% when Destination::Address with (address) %}
+          <div class="input-hex input-hex-address">
             <a href="/address/{{ address.as_str() }}">
               {{ address.as_str() }}
             </a>
+          </div>
           {% when Destination::Nulldata with (_ops) %}
             OP_RETURN data
           {% when Destination::P2PK with (pubkey) %}
@@ -24,58 +21,66 @@
           {% when Destination::Unknown with (_bytes) %}
             Unknown
         {% endmatch %}
-      </div>
-    </td>
-    <td colspan="2">
-      <div class="amount hex">
-        {% match output.slp_token %}
-          {% when Some with (slp_token) %}
-            {% match tx.slp_tx_data %}
-              {% when Some with (slp_tx_data) %}
-                {% match slp_genesis_info %}
-                  {% when Some with (genesis_info) %}
-                    {% if slp_token.amount > 0 || slp_token.is_mint_baton %}
-                      {% if slp_token.is_mint_baton %}
-                        <div class="ui green horizontal label">Mint baton</div>
-                      {% else %}
-                        {{ slp_token.amount|to_i128|render_token_amount(genesis_info.decimals)|safe }} {{ genesis_info.token_ticker|string_from_lossy_utf8 }}
+        
+        <div class="input-hex">
+          {% match output.slp_token %}
+            {% when Some with (slp_token) %}
+              {% match tx.slp_tx_data %}
+                {% when Some with (slp_tx_data) %}
+                  {% match slp_genesis_info %}
+                    {% when Some with (genesis_info) %}
+                      {% if slp_token.amount > 0 || slp_token.is_mint_baton %}
+                        {% if slp_token.is_mint_baton %}
+                          <div class="ui green horizontal label">Mint baton</div>
+                        {% else %}
+                          {{ slp_token.amount|to_i128|render_token_amount(genesis_info.decimals)|safe }} {{ genesis_info.token_ticker|string_from_lossy_utf8 }}
+                        {% endif %}
                       {% endif %}
-                    {% endif %}
+  
+                      <div>
+                        <small>{{ output.value|render_sats|safe }} XEC</small>
+                      </div>
+                    {% when None %}
+                      {{ output.value|render_sats|safe }} XEC
+                  {% endmatch %}
+                {% when None %}
+              {% endmatch %}
+            {% when None %}
+              {{ output.value|render_sats|safe }} XEC
+          {% endmatch %}
+        </div>
+      </div>
 
-                    <div>
-                      <small>{{ output.value|render_sats|safe }} XEC</small>
-                    </div>
-                  {% when None %}
-                    {{ output.value|render_sats|safe }} XEC
-                {% endmatch %}
-              {% when None %}
-            {% endmatch %}
+       <!-- <td class="one wide">
+        {% if is_token %}
+          <img src="/assets/slp-logo.png" />
+        {% endif %}
+      </td> --> 
+
+    <div class="output-row-section2">
+      <div>{{ index }}</div>
+      <div>
+        {% match output.spent_by %}
+          {% when Some with (outpoint) %}
+            <a href="/tx/{{ outpoint.txid|to_le_hex }}">
+              <i class="icon sign out"></i>
+            </a>
           {% when None %}
-            {{ output.value|render_sats|safe }} XEC
+            <i class="disabled icon sign out"></i>
         {% endmatch %}
       </div>
-    </td>
-    <td class="one wide">
-      {% match output.spent_by %}
-        {% when Some with (outpoint) %}
-          <a href="/tx/{{ outpoint.txid|to_le_hex }}">
-            <i class="icon sign out"></i>
-          </a>
-        {% when None %}
-          <i class="disabled icon sign out"></i>
-      {% endmatch %}
-    </td>
-  </tr>
-  <tr class="tx-transaction__script-data display-none">
-    <td colspan="6">
-      <p>
-        <strong>Script Hex</strong>
-        <div class="hex">{{ output.output_script|hexify_u8_vector }}</div>
-      </p>
-      <p>
-        <strong>Script Decoded</strong>
-        <div class="hex">{{ decoded_output_script }}</div>
-      </p>
-    </td>
-  </tr>
+    </div>
+
+  </div>
+  
+  <div class="tx-transaction__script-data display-none output-script-text">
+    <h4>Script Hex</h4>
+    <div class="hex">{{ output.output_script|hexify_u8_vector }}</div>
+    <h4 class="margintopscript">Script Decoded</h4>
+    <div class="hex">{{ decoded_output_script }}</div>
+  </div>
+
+</div>  
+
+
 {% endmacro %}

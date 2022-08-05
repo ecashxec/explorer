@@ -167,39 +167,39 @@
       <div class="ten wide column">
         <h2>Transaction</h2>
       </div>
-
     </div>
 
-    <div class="ui grid segment">
-      <div class="tx-transaction__inputs">
-        <h4>Inputs ({{ tx.inputs.len() }})</h4>
-        <table id="inputs" class="ui very basic table">
-          <tbody>
-            {% for input in tx.inputs %}
-              {% call input::render(loop.index0, input, tx, slp_genesis_info) %}
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-
-      <div class="tx-transaction__middle">
-        <div class="tx-transaction__arrow-separator">
-          <i class="big icon arrow right"></i>
+    <div class="input-output-ctn">
+      <div class="input-output-row">
+        <div class="input-ctn">
+          <h4>Inputs ({{ tx.inputs.len() }})</h4>
+          <div id="inputs">
+          
+              {% for input in tx.inputs %}
+                {% call input::render(loop.index0, input, tx, slp_genesis_info) %}
+              {% endfor %}
+          
+          </div>
         </div>
-      </div>
 
-      <div class="tx-transaction__outputs">
-        <h4>Outputs ({{ tx.outputs.len() }})</h4>
+       
+        <div class="input-output-arrow">
+          <img src="/assets/arrow.png" />
+        </div>
+       
 
-        <table id="outputs" class="ui very basic table">
-          <tbody>
-            {% for output in tx.outputs %}
-              {% call output::render(loop.index0, output, tx, slp_genesis_info) %}
-            {% endfor %}
-          </tbody>
-        </table>
+        <div class="output-ctn">
+          <h4>Outputs ({{ tx.outputs.len() }})</h4>
+          <div id="outputs">
+              {% for output in tx.outputs %}
+                {% call output::render(loop.index0, output, tx, slp_genesis_info) %}
+              {% endfor %}
+          </div>
+        </div>
+
       </div>
-    </div>
+    </div> 
+   
   </div>
 </div>
 
