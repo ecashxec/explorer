@@ -52,7 +52,9 @@
           {% else %}
             <tr>
               <td class="no-padding"><strong>Transaction ID</strong></td>
-              <td class="no-padding"><span class="hex">{{ tx_hex }}</span></td>
+              <td class="no-padding align-copy"><span class="hex" id="tx-hex">{{ tx_hex }}</span>
+                <div id="copyicon2" class="copy-btn" onclick="copyText('tx-hex', 'copyicon2')"></div>
+              </td>
             </tr>
           {% endif %}
         </tbody>

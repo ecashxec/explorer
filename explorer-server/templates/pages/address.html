@@ -10,8 +10,10 @@
       <div class="address-toprow-ctn">
         <div class="address-info-ctn">
           <h4>Address</h4>
-          <h2 id="address">{% if sats_address == address %}{{ sats_address }}{% else %}{{ token_address }}{% endif %}</h2>
-      
+          <div class="address-copy-ctn">
+            <h2 id="address">{% if sats_address == address %}{{ sats_address }}{% else %}{{ token_address }}{% endif %}</h2>
+            <div id="copyicon1" class="copy-btn" onclick="copyText('address', 'copyicon1')"></div>
+          </div>
           <h4>Balance</h4>
           <h2>{{ total_xec|render_sats|safe }} XEC</h2>
 

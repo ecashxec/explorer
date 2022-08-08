@@ -1318,6 +1318,57 @@ option, select > option {
   padding-left: 0;
 }
 
+.address-copy-ctn {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.address-copy-ctn h2 {
+  margin-bottom: 0;
+}
+
+.copy-btn {
+  width: 15px;
+  height: 18px;
+  margin-left: 10px;
+  transition: all ease-in-out 100ms;
+  cursor: pointer;
+  display: inline-block; 
+}
+
+.copy-btn::after {
+  content: "";
+  background-image: url("/assets/copy.png");
+  width: 15px;
+  height: 18px;
+  display: inline-block;
+  background-repeat: no-repeat;
+  background-size: contain;
+  opacity: 0.6;
+  transition: all ease-in-out 100ms;
+  cursor: pointer;
+}
+
+.copy-btn-message::before {
+  content: "Copied";
+  background-color: var(--primary-background);
+  margin-left: 10px;
+  color: var(--accent);
+  height: 18px;
+}
+
+.copy-btn:hover::after {
+  opacity: 1;
+  filter: brightness(0) saturate(100%) invert(40%) sepia(98%) saturate(718%) hue-rotate(158deg) brightness(106%) contrast(102%);
+}
+
+.align-copy {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
 @media (max-width: 1000px) {
 
 .ui[class*="three column"].grid>.column:not(.row), .ui[class*="three column"].grid>.row>.column {
