@@ -1,9 +1,10 @@
 const renderHash = (data) => {
+  let minifiedHash = minifyBlockID(data.txHash)
   if (data.blockHeight === 0) {
-  return '<a style="color:#CD0BC3" href="/tx/' + data.txHash + '">' + data.txHash + '</a>';
+  return '<a style="color:#CD0BC3" href="/tx/' + data.txHash + '">' + minifiedHash + '</a>';
   }
   else {
-    return '<a href="/tx/' + data.txHash + '">' + data.txHash + '</a>';
+    return '<a href="/tx/' + data.txHash + '">' + minifiedHash + '</a>';
   }
 };
 const renderSize = size => formatByteSize(size);

@@ -107,6 +107,10 @@ function minifyHash(hash) {
   return `${hash.slice(0, 1)}...${hash.slice(39, 64)}`;
 }
 
+function minifyBlockID(hash) {
+  return `${hash.slice(0, 6)}...${hash.slice(54, 64)}`;
+}
+
 const generateRange = (start, end) => [...Array(end - start + 1)].map((_, i) => start + i);
 
 const findClosest = (haystack, needle) => (
