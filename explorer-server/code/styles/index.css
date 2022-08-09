@@ -1335,6 +1335,7 @@ option, select > option {
   transition: all ease-in-out 100ms;
   cursor: pointer;
   display: inline-block; 
+  position: relative;
 }
 
 .copy-btn::after {
@@ -1350,14 +1351,6 @@ option, select > option {
   cursor: pointer;
 }
 
-.copy-btn-message::before {
-  content: "Copied";
-  background-color: var(--primary-background);
-  margin-left: 10px;
-  color: var(--accent);
-  height: 18px;
-}
-
 .copy-btn:hover::after {
   opacity: 1;
   filter: brightness(0) saturate(100%) invert(40%) sepia(98%) saturate(718%) hue-rotate(158deg) brightness(106%) contrast(102%);
@@ -1367,6 +1360,40 @@ option, select > option {
   display: flex;
   align-items: center;
   justify-content: flex-end;
+}
+
+.copy-btn .tooltiptext {
+  visibility: hidden;
+  background-color: #fff;
+  color: var(--primary-background);
+  text-align: center;
+  padding: 2px 0;
+  border-radius: 5px;
+  position: absolute;
+  z-index: 1;
+  width: 120px;
+  top: -10px;
+  left:50%;
+  transform:translate(-50%, -100%);
+  font-size: 12px;
+  z-index:99999999;
+  box-sizing:border-box;
+}
+
+.copy-btn .tooltiptext::before {
+  content:'';
+  position:absolute;
+  left:50%;
+  width: 0; 
+  height: 0; 
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  transform:translate(-50%,300%);
+  border-top: 7px solid #fff;
+}
+
+.copy-btn:hover .tooltiptext {
+  visibility: visible;
 }
 
 @media (max-width: 1000px) {

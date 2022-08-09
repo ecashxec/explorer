@@ -363,8 +363,8 @@ const scrollToBottom = () => {
 const copyText = (id, iconid) => {
   if (navigator && navigator.clipboard && navigator.clipboard.writeText)
     var textToCopy = document.getElementById(id).textContent;
-    $('#' + iconid).addClass("copy-btn-message").removeClass("copy-btn").delay(1000).queue(function(){
-      $(this).removeClass("copy-btn-message").addClass("copy-btn").dequeue();
-    });  
+    $('.tooltiptext').text("Copied!").delay(1300).queue(function(){
+      $(this).text("Copy to clipboard").dequeue();
+    });
     return navigator.clipboard.writeText(textToCopy);
 };

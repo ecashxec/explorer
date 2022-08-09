@@ -9,7 +9,7 @@ const renderHash = (data) => {
 };
 const renderSize = size => formatByteSize(size);
 const renderFee = (_value, _type, row) => {
-  console.log(row)
+  // console.log(row)
   if (row.isCoinbase) {
     return '<div class="ui green horizontal label">Coinbase</div>';
   }
