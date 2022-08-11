@@ -37,14 +37,22 @@
           {% if is_token %}
             <tr>
               <td><strong>Transaction ID</strong></td>
-              <td><span class="hex">{{ tx_hex }}</span></td>
+              <td>
+                <span class="hex" is="tx-hex2">{{ tx_hex }}</span>
+                <div class="copy-btn" onclick="copyText('tx-hex2')">
+                  <span class="tooltiptext">Copy to clipboard</span>
+                </div>
+              </td>
             </tr>
             <tr>
               <td><strong>Token ID</strong></td>
               <td>
                 {% match token_hex %}
                   {% when Some with (token_hex) %}
-                    <span class="hex">{{ token_hex }}</span>
+                    <span class="hex" id="token-hex">{{ token_hex }}</span>
+                    <div class="copy-btn" onclick="copyText('token-hex')">
+                      <span class="tooltiptext">Copy to clipboard</span>
+                    </div>
                   {% when None %}
                 {% endmatch %}
               </td>

@@ -1175,11 +1175,62 @@ body .ui.slider.checkbox input:checked~.box, .ui.slider.checkbox input:checked~l
 #sats-coins {
   margin: 0;
   margin-top: 20px;
+  width: 100%;
+}
+
+.coins-table-header {
+  display: flex;
+  background-color: var(--accent);
+  font-weight: 600;
+  align-items: center;
+}
+
+.coin-row {
+  display: flex;
+}
+
+.coins-table-header div, .coin-row div {
+ width: 25%;
+ padding: 5px 8px;
+ border: 1px solid var(--primary-background);
+ overflow: hidden;
+}
+
+.coins-table-header div {
+  border-left: none;
+  padding: 8px 8px;
+}
+
+.coin-row div {
+  border-top: none;
+  border-left: none;
+  background-color: rgba(255, 255, 255, 0.1);
+ }
+
+ .coin-row div a:hover {
+  text-decoration: underline;
+ }
+
+ .coin-row div:first-child, .coins-table-header div:first-child {
+  border-left: 1px solid var(--primary-background);
+ }
+
+.coins-table-header div:first-child, .coin-row div:first-child {
+  width: 50%;
 }
 
 #sats-coins-table {
-  max-height: 270px;
+  max-height: 350px;
   overflow-y: scroll;
+}
+
+#sats-coins-table::-webkit-scrollbar {
+  display: none;
+}
+
+#sats-coins-table {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
 }
 
 option, select > option { 
@@ -1396,6 +1447,12 @@ option, select > option {
   visibility: visible;
 }
 
+.address-info-ctn .token-dust {
+  margin-top: -10px;
+  margin-bottom: 10px;
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+
 @media (max-width: 1000px) {
 
 .ui[class*="three column"].grid>.column:not(.row), .ui[class*="three column"].grid>.row>.column {
@@ -1444,5 +1501,27 @@ option, select > option {
  transform: rotate(90deg);
  width: 40px;
 }
+
+.coins-table-header div, .coin-row div {
+  width: unset;
+  padding: 5px 5px;
+ }
+ 
+ .coins-table-header div {
+   padding: 8px 5px;
+ }
+ 
+ .coins-table-header div:first-child, .coin-row div:first-child {
+  width: 100px;
+ }
+
+ .coins-table-header div:last-child, .coin-row div:last-child {
+  width: 50%;
+  flex-grow: 1;
+ }
+
+ .coins-table-header div:nth-child(2), .coin-row div:nth-child(2) {
+  width: 70px;
+ }
 
 }

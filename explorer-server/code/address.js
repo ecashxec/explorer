@@ -1,45 +1,28 @@
 const getAddress = () => window.location.pathname.split('/')[2];
 
+function renderTxHash(row) {
+  return '<a href="/tx/' + row.txHash + '">' + 
+  minifyBlockID(row.txHash) + ':' + row.outIdx +
+    (row.isCoinbase ? '<div class="ui green horizontal label">Coinbase</div>' : '') +
+    '</a>';
+}
+
+function renderRows(row) {
+  return ( 
+  '<div class="coin-row">' +
+  '<div>' + renderTxHash(row) + '</div>' +
+  '<div>' + '<a href="/block-height/' + row.blockHeight + '">' + renderInteger(row.blockHeight) + '</a>' + '</div>' +
+  '<div>' + renderSats(row.satsAmount) + ' XEC' + '</div>' +
+  '</div>'
+  ); 
+}
+
 var isSatsTableLoaded = false;
 function loadSatsTable() {
   if (!isSatsTableLoaded) {
-    webix.ui({
-      container: "sats-coins-table",
-      view: "datatable",
-      columns:[
-        {
-          id: "outpoint",
-          header: "Outpoint",
-          css: "hash",
-          adjust: true,
-          template: function (row) {
-            return '<a href="/tx/' + row.txHash + '">' + 
-              row.txHash + ':' + row.outIdx +
-              (row.isCoinbase ? '<div class="ui green horizontal label">Coinbase</div>' : '') +
-              '</a>';
-          },
-        },
-        {
-          id: "blockHeight",
-          header: "Block Height",
-          adjust: true,
-          template: function (row) {
-            return '<a href="/block-height/' + row.blockHeight + '">' + renderInteger(row.blockHeight) + '</a>';
-          },
-        },
-        {
-          id: "amount",
-          header: "XEC amount",
-          adjust: true,
-          template: function (row) {
-            return renderSats(row.satsAmount) + ' XEC';
-          },
-        },
-      ],
-      autoheight: true,
-      autowidth: true,
-      data: addrBalances["main"].utxos,
-    });
+    for (let i = 0; i < addrBalances["main"].utxos.length; i++) {
+      $('#sats-coins-table').append(renderRows(addrBalances["main"].utxos[i]));
+    }
     isSatsTableLoaded = true;
   }
 }
