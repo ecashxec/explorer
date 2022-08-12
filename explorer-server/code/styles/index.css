@@ -1453,6 +1453,54 @@ option, select > option {
   color: rgba(255, 255, 255, 0.8) !important;
 }
 
+.etoken-row {
+  display: flex;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 5px 0;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.etoken-row:last-child {
+  border-bottom: none;
+}
+
+.etoken-row .etoken-row-cell {
+  padding: 0px 10px;
+  width: 15%;
+  overflow: hidden;
+  display: flex;
+}
+
+.etoken-row .etrc-ticker {
+  width: 10%;
+  font-weight: bold;
+  text-align: right;
+  color: var(--accent);
+}
+
+.etoken-row .etrc-name {
+  flex-grow: 2;
+}
+
+.etoken-row .etrc-dust {
+  text-align: right;
+}
+
+.etoken-row .etrc-last {
+ width: 100px;
+ padding-right: 0;
+ text-align: right;
+}
+
+.etoken-row .etrc-last a {
+ cursor: pointer;
+ }
+
+.etoken-table {
+  width: 100%;
+}
+
 @media (max-width: 1000px) {
 
 .ui[class*="three column"].grid>.column:not(.row), .ui[class*="three column"].grid>.row>.column {

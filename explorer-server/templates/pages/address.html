@@ -89,14 +89,14 @@
                 {% when Some with (slp_tx_data) %}
                   {% match slp_tx_data.genesis_info %}
                     {% when Some with (genesis_info) %}
-                      <tr>
-                        <td class="token-amount">{{ json_balance.token_amount|to_i128|render_token_amount(genesis_info.decimals)|safe }}</td>
-                        <td>{{ genesis_info.token_ticker|string_from_lossy_utf8 }}</td>
-                        <td>{{ genesis_info.token_name|string_from_lossy_utf8 }}</td>
-                        <td>
-                          +{{ json_balance.sats_amount|render_sats|safe }} XEC dust
+                      <div class="etoken-row">
+                        <div class="etoken-row-cell">{{ json_balance.token_amount|to_i128|render_token_amount(genesis_info.decimals)|safe }}</div>
+                        <div class="etoken-row-cell etrc-ticker">{{ genesis_info.token_ticker|string_from_lossy_utf8 }}</div>
+                        <div class="etoken-row-cell etrc-name">{{ genesis_info.token_name|string_from_lossy_utf8 }}</div>
+                        <div class="etoken-row-cell etrc-dust">+{{ json_balance.sats_amount|render_sats|safe }} XEC dust</div>
+                        <div class="etoken-row-cell etrc-last">
                           <a onclick="$('#token-coins-{{ loop.index0 }}').toggle(); loadTokenTable('{{ token_id }}')">
-                            <span>( {{ json_balance.utxos.len() }}
+                            <span>{{ json_balance.utxos.len() }}
                             {% if json_balance.token_amount == 1 %}
                               coin
                             {% else %}
@@ -104,16 +104,16 @@
                             {% endif %}
                             </span>
                             <i class="icon chevron circle down"></i>
-                            <span>)</span>
                           </a>
-                        </td>
-                      </tr>
+                        </div>
 
-                      <tr id="token-coins-{{ loop.index0 }}" style="display: none;">
-                        <td class="token-table" colspan="20">
-                          <div id="tokens-coins-table-{{ token_id }}"></div>
-                        </td>
-                      </tr>
+                        <div id="token-coins-{{ loop.index0 }}" style="display: none;">
+                          <div class="etoken-table">
+                            <div id="tokens-coins-table-{{ token_id }}"></div>
+                          </div>
+                        </div>
+
+                      </div>
                     {% when None %}
                   {% endmatch %}
                 {% when None %}
