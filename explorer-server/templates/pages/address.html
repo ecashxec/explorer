@@ -66,7 +66,7 @@
       <div class="address-ctn-divider"></div>
 
       <a class="show-coins" onclick="$('#sats-coins').toggle(); loadSatsTable();">
-        Show Coins <i class="icon chevron circle down"></i>
+        Coins <i class="icon chevron circle down"></i>
       </a>
 
       <div id="sats-coins" style="display: none;">
@@ -78,7 +78,12 @@
         <div id="sats-coins-table"></div>
       </div>
        
+      {% if token_dust > 0  %}
       <div class="address-ctn-divider"></div>
+      <a class="show-coins" onclick="$('.etoken-table-ctn').toggle();">
+        eTokens <i class="icon chevron circle down"></i>
+      </a>
+      <div class="etoken-table-ctn" style="display: none;">
 
       {% for (token_id, json_balance) in json_balances %}
         {% if token_id != "main" %}
@@ -107,10 +112,13 @@
                           </a>
                         </div>
 
-                        <div id="token-coins-{{ loop.index0 }}" style="display: none;">
-                          <div class="etoken-table">
-                            <div id="tokens-coins-table-{{ token_id }}"></div>
+                        <div class="etoken-coin-table-ctn" id="token-coins-{{ loop.index0 }}" style="display: none;">
+                          <div class="coins-table-header">
+                            <div>Coin</div>
+                            <div>Block</div>
+                            <div>Amount</div>
                           </div>
+                            <div class="sats-coins-table" id="tokens-coins-table-{{ token_id }}"></div>
                         </div>
 
                       </div>
@@ -122,6 +130,8 @@
           {% endmatch %}
         {% endif %}
       {% endfor %}
+    </div>
+    {% endif %}
 
     </div>
 

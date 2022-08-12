@@ -1196,6 +1196,10 @@ body .ui.slider.checkbox input:checked~.box, .ui.slider.checkbox input:checked~l
  overflow: hidden;
 }
 
+.coins-table-header div:last-child, .coin-row div:last-child {
+  text-align: right;
+ }
+
 .coins-table-header div {
   border-left: none;
   padding: 8px 8px;
@@ -1219,16 +1223,16 @@ body .ui.slider.checkbox input:checked~.box, .ui.slider.checkbox input:checked~l
   width: 50%;
 }
 
-#sats-coins-table {
+#sats-coins-table, .sats-coins-table {
   max-height: 350px;
   overflow-y: scroll;
 }
 
-#sats-coins-table::-webkit-scrollbar {
+#sats-coins-table::-webkit-scrollbar, .sats-coins-table::-webkit-scrollbar {
   display: none;
 }
 
-#sats-coins-table {
+#sats-coins-table, .sats-coins-table {
   -ms-overflow-style: none;  /* IE and Edge */
   scrollbar-width: none;  /* Firefox */
 }
@@ -1456,7 +1460,7 @@ option, select > option {
 .etoken-row {
   display: flex;
   border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-  padding: 5px 0;
+  padding: 10px 0;
   align-items: center;
   flex-wrap: wrap;
 }
@@ -1502,6 +1506,16 @@ option, select > option {
 
 .etoken-table {
   width: 100%;
+}
+
+.etoken-table-ctn {
+  width: 100%;
+  margin-top: 20px;
+}
+
+.etoken-coin-table-ctn {
+  width: 100%;
+  margin-top: 20px;
 }
 
 @media (max-width: 1000px) {
@@ -1574,5 +1588,19 @@ option, select > option {
  .coins-table-header div:nth-child(2), .coin-row div:nth-child(2) {
   width: 70px;
  }
+
+ .etoken-row {
+  flex-direction: column;
+  padding: 10px 0;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.etoken-row .etoken-row-cell {
+  padding: 0px 0px;
+  width: 100% !important;
+  justify-content: flex-start !important;
+  margin-bottom: 5px;
+}
 
 }

@@ -7,14 +7,23 @@ function renderTxHashCoins(row) {
     '</a>';
 }
 
-function renderRowsCoins(row) {
-  return ( 
-  '<div class="coin-row">' +
-  '<div>' + renderTxHashCoins(row) + '</div>' +
-  '<div>' + '<a href="/block-height/' + row.blockHeight + '">' + renderInteger(row.blockHeight) + '</a>' + '</div>' +
-  '<div>' + renderSats(row.satsAmount) + ' XEC' + '</div>' +
-  '</div>'
-  ); 
+function renderRowsCoins(row, type, decimals, ticker) {
+  if (type === 'token') {
+    return ( 
+      '<div class="coin-row">' +
+      '<div>' + renderTxHashCoins(row) + '</div>' +
+      '<div>' + '<a href="/block-height/' + row.blockHeight + '">' + renderInteger(row.blockHeight) + '</a>' + '</div>' +
+      '<div>' + renderAmount(row.tokenAmount, decimals) + ' ' + ticker + '</div>' +
+      '</div>'
+      ); 
+  }
+  else return ( 
+      '<div class="coin-row">' +
+      '<div>' + renderTxHashCoins(row) + '</div>' +
+      '<div>' + '<a href="/block-height/' + row.blockHeight + '">' + renderInteger(row.blockHeight) + '</a>' + '</div>' +
+      '<div>' + renderSats(row.satsAmount) + ' XEC' + '</div>' +
+      '</div>'
+      ); 
 }
 
 var isSatsTableLoaded = false;
@@ -30,51 +39,9 @@ function loadSatsTable() {
 var isTokenTableLoaded = {};
 function loadTokenTable(tokenId) {
   if (!isTokenTableLoaded[tokenId]) {
-    webix.ui({
-      container: "tokens-coins-table-" + tokenId,
-      view: "datatable",
-      columns:[
-        {
-          id: "outpoint",
-          header: "Outpoint",
-          css: "hash",
-          adjust: true,
-          template: function (row) {
-            return '<a href="/tx/' + row.txHash + '">' + 
-              row.txHash + ':' + row.outIdx +
-              (row.isCoinbase ? '<div class="ui green horizontal label">Coinbase</div>' : '') +
-              '</a>';
-          },
-        },
-        {
-          id: "blockHeight",
-          header: "Block Height",
-          adjust: true,
-          template: function (row) {
-            return '<a href="/block-height/' + row.blockHeight + '">' + renderInteger(row.blockHeight) + '</a>';
-          },
-        },
-        {
-          id: "tokenAmount",
-          header: addrBalances[tokenId].token?.tokenTicker + " amount",
-          adjust: true,
-          template: function (row) {
-            return renderAmount(row.tokenAmount, addrBalances[tokenId].token?.decimals) + ' ' + addrBalances[tokenId].token?.tokenTicker;
-          },
-        },
-        {
-          id: "satsAmount",
-          header: "XEC amount",
-          adjust: true,
-          template: function (row) {
-            return renderSats(row.satsAmount) + ' XEC';
-          },
-        },
-      ],
-      autoheight: true,
-      autowidth: true,
-      data: addrBalances[tokenId].utxos,
-    });
+    for (let i = 0; i < addrBalances[tokenId].utxos.length; i++) {
+      $("#tokens-coins-table-" + tokenId).append(renderRowsCoins(addrBalances[tokenId].utxos[i], 'token', addrBalances[tokenId].token?.decimals, addrBalances[tokenId].token?.tokenTicker));
+    }
     isTokenTableLoaded[tokenId] = true;
   }
 }
