@@ -120,8 +120,10 @@ const findClosest = (haystack, needle) => (
 );
 
 const scrollToBottom = () => {
-  const pageHeight = $(document).height()-$(window).height();
-  $("html, body").animate({ scrollTop: pageHeight - 50 }, 250);
+  // const pageHeight = $(document).height()-$(window).height();
+  // $("html, body").animate({ scrollTop: pageHeight - 50 }, 250);
+        $('html,body').animate({ scrollTop: 0 }, 'slow');
+        return false; 
 };
 
 
