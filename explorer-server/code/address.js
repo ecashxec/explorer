@@ -1,16 +1,16 @@
 const getAddress = () => window.location.pathname.split('/')[2];
 
-function renderTxHash(row) {
+function renderTxHashCoins(row) {
   return '<a href="/tx/' + row.txHash + '">' + 
   minifyBlockID(row.txHash) + ':' + row.outIdx +
     (row.isCoinbase ? '<div class="ui green horizontal label">Coinbase</div>' : '') +
     '</a>';
 }
 
-function renderRows(row) {
+function renderRowsCoins(row) {
   return ( 
   '<div class="coin-row">' +
-  '<div>' + renderTxHash(row) + '</div>' +
+  '<div>' + renderTxHashCoins(row) + '</div>' +
   '<div>' + '<a href="/block-height/' + row.blockHeight + '">' + renderInteger(row.blockHeight) + '</a>' + '</div>' +
   '<div>' + renderSats(row.satsAmount) + ' XEC' + '</div>' +
   '</div>'
@@ -21,7 +21,7 @@ var isSatsTableLoaded = false;
 function loadSatsTable() {
   if (!isSatsTableLoaded) {
     for (let i = 0; i < addrBalances["main"].utxos.length; i++) {
-      $('#sats-coins-table').append(renderRows(addrBalances["main"].utxos[i]));
+      $('#sats-coins-table').append(renderRowsCoins(addrBalances["main"].utxos[i]));
     }
     isSatsTableLoaded = true;
   }

@@ -1476,6 +1476,7 @@ option, select > option {
   width: 10%;
   font-weight: bold;
   text-align: right;
+  justify-content: flex-end;
   color: var(--accent);
 }
 
@@ -1485,12 +1486,14 @@ option, select > option {
 
 .etoken-row .etrc-dust {
   text-align: right;
+  justify-content: flex-end;
 }
 
 .etoken-row .etrc-last {
  width: 100px;
  padding-right: 0;
  text-align: right;
+ justify-content: flex-end;
 }
 
 .etoken-row .etrc-last a {
