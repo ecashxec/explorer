@@ -88,12 +88,12 @@ const datatable = () => {
         targets:   -1
     } ],
     columns: [
-      { data: {txHash: 'txHash', blockHeight:'blockHeight'}, title: 'ID', className: 'hash', render: renderHash },
-      { data: 'size', title: 'Size', render: renderSize, className: 'text-right' },
-      { name: 'fee', title: 'Fee', css: 'fee', render: renderFee, className: 'text-right' },
-      { data: 'numInputs', title: 'Inputs', className: 'text-right' },
-      { data: 'numOutputs', title: 'Outputs', className: 'text-right' },
-      { data: 'satsOutput', title: 'Output Amount', render: renderOutput, className: 'text-right' },
+      { data: {txHash: 'txHash', blockHeight:'blockHeight'}, title: 'ID', className: 'hash', render: renderHash, orderable: false },
+      { data: 'size', title: 'Size', render: renderSize, className: 'text-right', orderSequence: ['desc', 'asc'] },
+      { name: 'fee', title: 'Fee', css: 'fee', render: renderFee, className: 'text-right', orderSequence: ['desc', 'asc'] },
+      { data: 'numInputs', title: 'Inputs', className: 'text-right', orderSequence: ['desc', 'asc'] },
+      { data: 'numOutputs', title: 'Outputs', className: 'text-right', orderSequence: ['desc', 'asc'] },
+      { data: 'satsOutput', title: 'Output Amount', render: renderOutput, className: 'text-right', orderSequence: ['desc', 'asc'] },
       { name: 'responsive', render: () => '' },
     ]
   });

@@ -111,9 +111,9 @@ const dataTable = () => {
         targets:   -1
     } ],
     columns: [
-      { data: 'height', render: renderTemplate },
+      { data: 'height', render: renderTemplate, orderSequence: ['desc', 'asc'] },
       { data: 'hash', orderable: false, className: 'hash', render: renderHash },
-      { data: 'numTxs', render: renderNumtTxs, className: 'text-right' },
+      { data: 'numTxs', render: renderNumtTxs, className: 'text-right', orderSequence: ['desc', 'asc'] },
       { name: 'age', data: 'timestamp', orderable: false, render: renderAge, className: 'text-right' },
       { data: 'difficulty', orderable: false, render: renderDifficulty, className: 'text-right' },
       { data: 'size', orderable: false, render: renderSize, className: 'text-right' },
