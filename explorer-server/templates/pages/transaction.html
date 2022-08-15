@@ -38,7 +38,7 @@
             <tr>
               <td><strong>Transaction ID</strong></td>
               <td>
-                <span class="hex" is="tx-hex2">{{ tx_hex }}</span>
+                <span class="hex" id="tx-hex2">{{ tx_hex }}</span>
                 <div class="copy-btn" onclick="copyText('tx-hex2')">
                   <span class="tooltiptext">Copy to clipboard</span>
                 </div>
@@ -170,7 +170,7 @@
 
     {% if is_token %}
       <h2>{{ token_section_title }}</h2>
-      <div class="ui grid segment tx-details">
+      <div class="tx-details-ctn">
         {% call token_info_table::render(tx, slp_genesis_info, slp_meta, token_input, token_output) %}
       </div>
     {% endif %}

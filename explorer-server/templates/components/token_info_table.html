@@ -1,20 +1,22 @@
 {% macro render(tx, slp_genesis_info, slp_meta, token_input, token_output) %}
   {% match slp_genesis_info %}
     {% when Some with (genesis_info) %}
-      <table class="tx-details-table ui very basic table">
-        <tbody>
-          <tr>
-            <td>Token Ticker</td>
-            <td>{{ genesis_info.token_ticker|string_from_lossy_utf8 }}</td>
-          </tr>
-          <tr>
-            <td>Token Name</td>
-            <td>{{ genesis_info.token_name|string_from_lossy_utf8 }}</td>
-          </tr>
-          <tr>
-            <td>Token Type</td>
-            <td>
-              {% match slp_meta %}
+    <div class="tx-details-half">
+
+      <div class="tx-details-row">
+        <div>Token Ticker</div>
+        <div>{{ genesis_info.token_ticker|string_from_lossy_utf8 }}</div>
+      </div>
+
+      <div class="tx-details-row">
+        <div>Token Name</div>
+        <div>{{ genesis_info.token_name|string_from_lossy_utf8 }}</div>
+      </div>
+
+      <div class="tx-details-row">
+        <div>Token Type</div>
+        <div>
+          {% match slp_meta %}
                 {% when Some with (slp_meta) %}
                   {% match slp_meta.token_type() %}
                     {% when SlpTokenType::Fungible %}
@@ -41,12 +43,13 @@
                 {% when None %}
                     Unknown
               {% endmatch %}
-            </td>
-          </tr>
-          <tr>
-            <td>Transaction Type</td>
-            <td>
-              {% match slp_meta %}
+        </div>
+        </div>
+
+        <div class="tx-details-row">
+          <div>Transaction Type</div>
+          <div>
+            {% match slp_meta %}
                 {% when Some with (slp_meta) %}
                   {% match slp_meta.token_type() %}
                     {% when SlpTokenType::Fungible %}
@@ -82,47 +85,51 @@
                   {% endmatch %}
                 {% when None %}
               {% endmatch %}
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      <div class="ui vertical divider tx-details-table__divider"></div>
-      <table class="tx-details-table ui very basic table">
-        <tbody>
-          <tr>
-            <td>Token Output</td>
-            <td>
-              {{ token_output|render_token_amount(genesis_info.decimals)|safe }} {{ genesis_info.token_ticker|string_from_lossy_utf8 }}
-              {% if token_output < token_input %}
-                <br />
-                ({{ (token_input - token_output)|render_token_amount(genesis_info.decimals)|safe }} {{ genesis_info.token_ticker|string_from_lossy_utf8 }} burned)
-              {% endif %}
-            </td>
-          </tr>
-          <tr>
-            <td>Document URI</td>
-            <td>
-              {% let token_url = genesis_info.token_document_url|string_from_lossy_utf8 %}
-              <a href="{{ token_url }}" target="_blank">{{ token_url }}</a>
-            </td>
-          </tr>
-          <tr>
-            <td>Document Hash</td>
-            <td>
-              {% match genesis_info.token_document_url.len() %}
-                {% when 0 %}
-                  <div class="ui black horizontal label">Not set</div>
-                {% when _ %}
-                  <div class="hex">{{ genesis_info.token_document_hash|hexify_u8_vector }}</div>
-              {% endmatch %}
-            </td>
-          </tr>
-          <tr>
-            <td>Decimals</td>
-            <td>{{ genesis_info.decimals }}</div>
-          </tr>
-        </tbody>
-      </table>
+          </div>
+        </div>
+
+    </div>
+
+    <div class="tx-details-half">
+
+      <div class="tx-details-row">
+        <div>Token Output</div>
+        <div>{{ token_output|render_token_amount(genesis_info.decimals)|safe }} {{ genesis_info.token_ticker|string_from_lossy_utf8 }}
+          {% if token_output < token_input %}
+            <br />
+            ({{ (token_input - token_output)|render_token_amount(genesis_info.decimals)|safe }} {{ genesis_info.token_ticker|string_from_lossy_utf8 }} burned)
+          {% endif %}</div>
+        </div>
+
+        <div class="tx-details-row">
+          <div>Document URI</div>
+          <div>{% let token_url = genesis_info.token_document_url|string_from_lossy_utf8 %}
+            <a href="{{ token_url }}" target="_blank">{{ token_url }}</a></div>
+        </div>
+
+        <div class="tx-details-row">
+          <div>Document Hash</div>
+          <div>
+            {% match genesis_info.token_document_url.len() %}
+            {% when 0 %}
+              <div class="ui black horizontal label">Not set</div>
+            {% when _ %}
+              <div class="hex">{{ genesis_info.token_document_hash|hexify_u8_vector }}</div>
+          {% endmatch %}
+          </div>
+        </div>
+
+        <div class="tx-details-row">
+          <div>Decimals</div>
+          <div>{{ genesis_info.token_name|string_from_lossy_utf8 }}</div>
+        </div>
+
+        <div class="tx-details-row">
+          <div>Token Name</div>
+          <div>{{ genesis_info.decimals }}</div>
+        </div>
+    
+     </div>
     {% when None %}
   {% endmatch %}
 {% endmacro %}
