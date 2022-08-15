@@ -101,7 +101,11 @@ const renderFeePerByte = (_value, _type, row) => {
   return renderInteger(Math.round(feePerByte * 1000)) + '/kB';
 };
 
-const renderAmountXEC = (_value, _type, row) => renderSats(row.stats.deltaSats) + ' XEC';
+const renderAmountXEC = (_value, _type, row) => {
+  if (row.stats.deltaSats < 0) {
+  return '<span>' + renderSats(row.stats.deltaSats) + ' XEC</span>'
+  } else return '<span style="color:#15ee3e">+' + renderSats(row.stats.deltaSats) + ' XEC</span>'
+};
 
 const renderToken = (_value, _type, row) => {
   if (row.token !== null) {
@@ -157,7 +161,7 @@ const datatable = () => {
       { name: "fee", title: "Fee", className: "fee", render: renderFee, orderSequence: ['desc', 'asc'] },
       { name: "numInputs", data: 'numInputs', title: "Inputs", orderSequence: ['desc', 'asc'] },
       { name: "numOutputs", data: 'numOutputs', title: "Outputs", orderSequence: ['desc', 'asc'] },
-      { name: "deltaSats", data: 'deltaSats', title: "Amount XEC", render: renderAmountXEC, orderSequence: ['desc', 'asc'] },
+      { name: "deltaSats", data: 'deltaSats', title: "Amount", render: renderAmountXEC, orderSequence: ['desc', 'asc'], className: 'text-right' },
       { name: "token", title: "Amount Token", render: renderToken },
       { name: 'responsive', render: () => '' },
     ],

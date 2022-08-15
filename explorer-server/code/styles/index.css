@@ -214,6 +214,11 @@ table.dataTable.no-footer {
   padding-right: 14px !important;
 }
 
+#address-txs-table th:nth-child(9) {
+  text-align: right !important;
+  padding-right: 14px !important;
+}
+
 .text-right {
   text-align: right;
 }
