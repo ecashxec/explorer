@@ -1523,6 +1523,11 @@ option, select > option {
   margin-top: 20px;
 }
 
+.cointable-coinbase {
+  display: inline !important;
+  margin-left: 10px !important;
+}
+
 @media (max-width: 1000px) {
 
 .ui[class*="three column"].grid>.column:not(.row), .ui[class*="three column"].grid>.row>.column {

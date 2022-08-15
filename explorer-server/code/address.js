@@ -3,7 +3,7 @@ const getAddress = () => window.location.pathname.split('/')[2];
 function renderTxHashCoins(row) {
   return '<a href="/tx/' + row.txHash + '">' + 
   minifyBlockID(row.txHash) + ':' + row.outIdx +
-    (row.isCoinbase ? '<div class="ui green horizontal label">Coinbase</div>' : '') +
+    (row.isCoinbase ? '<div class="ui green horizontal label cointable-coinbase">Coinbase</div>' : '') +
     '</a>';
 }
 
