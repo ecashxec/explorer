@@ -70,8 +70,8 @@ const renderTxID = (data) => {
 };
 
 const renderBlockHeight = (_value, _type, row) => {
-  if (row.timestamp == 0) {
-    return '<div class="ui gray horizontal label">Mempool</div>';
+  if (row.blockHeight === 0) {
+    return '<div class="ui red horizontal label">Unconfirmed</div>';
   }
   return '<a href="/block-height/' + row.blockHeight + '">' + renderInteger(row.blockHeight) + '</a>';
 };

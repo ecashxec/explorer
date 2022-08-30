@@ -1185,7 +1185,7 @@ body .ui.slider.checkbox input:checked~.box, .ui.slider.checkbox input:checked~l
 
 .coins-table-header {
   display: flex;
-  background-color: var(--accent);
+  background-color: rgba(255, 255, 255, 0.1);
   font-weight: 600;
   align-items: center;
 }
