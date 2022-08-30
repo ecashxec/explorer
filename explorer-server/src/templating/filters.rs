@@ -127,9 +127,7 @@ pub fn render_sats(sats: &i64) -> askama::Result<String> {
     let integer_part: u64 = parts.next().unwrap().parse().unwrap();
     let fract_part = parts.next().unwrap();
 
-    let output = if fract_part == "00" {
-        render_integer_with_commas(&integer_part)?
-    } else {
+    let output = {
         let output = html! {
             (PreEscaped(render_integer_with_commas(&integer_part)?))
             "."

@@ -24,17 +24,17 @@ function formatByteSize(size) {
 
 function renderInteger(number) {
   var fmt = Intl.NumberFormat('en-EN').format(number);
-  var parts = fmt.split(',');
-  var str = '';
-  for (var i = 0; i < parts.length; ++i) {
-    const classSep = i == parts.length - 1 ? '' : "digit-sep";
-    if (i >= 2) {
-      str += '<small class="' + classSep + '">' + parts[i] + '</small>';
-    } else {
-      str += '<span class="' + classSep + '">' + parts[i] + '</span>';
-    }
-  }
-  return str;
+  // var parts = fmt.split(',');
+  // var str = '';
+  // for (var i = 0; i < parts.length; ++i) {
+  //   const classSep = i == parts.length - 1 ? '' : "digit-sep";
+  //   if (i >= 2) {
+  //     str += '<small class="' + classSep + '">' + parts[i] + '</small>';
+  //   } else {
+  //     str += '<span class="' + classSep + '">' + parts[i] + '</span>';
+  //   }
+  // }
+  return fmt;
 }
 
 function renderAmount(baseAmount, decimals) {
@@ -71,7 +71,7 @@ function renderSats(sats) {
   var fractZero = fractPart === '00';
 
   if (fractZero) {
-    return renderInteger(integerPart);
+    return renderInteger(integerPart) + '.<small>' + fractPart + '</small>';
   } else {
     return renderInteger(integerPart) + '.<small>' + fractPart + '</small>';
   }
