@@ -1596,7 +1596,7 @@ option, select > option {
  }
 
  .coins-table-header div:nth-child(2), .coin-row div:nth-child(2) {
-  width: 70px;
+  width: 110px;
  }
 
  .etoken-row {
