@@ -26,14 +26,72 @@ function renderRowsCoins(row, type, decimals, ticker) {
       ); 
 }
 
+// var isSatsTableLoaded = false;
+// function loadSatsTable() {
+//   if (!isSatsTableLoaded) {
+//     for (let i = 0; i < addrBalances["main"].utxos.length; i++) {
+//       $('#sats-coins-table').append(renderRowsCoins(addrBalances["main"].utxos[i]));
+//     }
+//     isSatsTableLoaded = true;
+//   }
+// }
+
 var isSatsTableLoaded = false;
 function loadSatsTable() {
-  if (!isSatsTableLoaded) {
-    for (let i = 0; i < addrBalances["main"].utxos.length; i++) {
-      $('#sats-coins-table').append(renderRowsCoins(addrBalances["main"].utxos[i]));
-    }
-    isSatsTableLoaded = true;
+  const listArray = []
+  for (let i = 0; i < addrBalances["main"].utxos.length; i++) {
+    listArray.push(renderRowsCoins(addrBalances["main"].utxos[i]))
   }
+  const numberOfItems = listArray.length
+  const numberPerPage = 20
+  const currentPage = 1
+  const numberOfPages = Math.ceil(numberOfItems / numberPerPage)
+
+  function accomodatePage(clickedPage) {
+    if (clickedPage <= 1) {
+      return clickedPage + 1
+    }
+    if (clickedPage >= numberOfPages) {
+      return clickedPage - 1
+    }
+    return clickedPage
+  }
+
+  function buildPagination(clickedPage) {
+    $('.paginator').empty()
+    const currPageNum = accomodatePage(clickedPage)
+    if (numberOfPages >= 5) {
+      $('.paginator').append(`<button class="page_btn" value="${1}">&#171;</button>`)
+      for (let i = -1; i < 4; i++) {
+        $('.paginator').append(`<button class="page_btn" value="${currPageNum+i}">${currPageNum+i}</button>`)
+      }
+      $('.paginator').append(`<button class="page_btn" value="${numberOfPages}">&#187;</button>`)
+    } else if (numberOfPages === 1) {
+      return
+    } 
+    else {
+      for (let i = 0; i < numberOfPages; i++) {
+        $('.paginator').append(`<button class="btn btn-primary" value="${i+1}">${i+1}</button>`)
+      }
+    }
+  }
+
+  function buildPage(currPage) {
+    const trimStart = (currPage - 1) * numberPerPage
+    const trimEnd = trimStart + numberPerPage
+    $('#sats-coins-table').empty().append(listArray.slice(trimStart, trimEnd))
+  }
+
+  $(document).ready(function() {
+    buildPage(1)
+    buildPagination(currentPage)
+
+    $('.paginator').on('click', 'button', function() {
+      var clickedPage = parseInt($(this).val())
+      buildPagination(clickedPage)
+      buildPage(clickedPage)
+    });
+  });
 }
 
 var isTokenTableLoaded = {};

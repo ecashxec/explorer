@@ -1528,6 +1528,31 @@ option, select > option {
   margin-left: 10px !important;
 }
 
+.paginator {
+  width: 100%;
+  margin-top: 20px;
+  text-align: center;
+}
+
+.paginator button {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  color: #fff;
+  font-size: 14px;
+  user-select: none;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-right: none;
+}
+
+.paginator button:last-child {
+  border-right: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+.paginator button:hover {
+ color: var(--accent);
+}
+
 @media (max-width: 1000px) {
 
 .ui[class*="three column"].grid>.column:not(.row), .ui[class*="three column"].grid>.row>.column {
