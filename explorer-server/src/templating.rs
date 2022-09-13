@@ -14,6 +14,10 @@ mod filters;
 pub struct HomepageTemplate {}
 
 #[derive(Template)]
+#[template(path = "pages/404.html")]
+pub struct NotFoundTemplate {}
+
+#[derive(Template)]
 #[template(path = "pages/blocks.html")]
 pub struct BlocksTemplate {
     pub last_block_height: u32,

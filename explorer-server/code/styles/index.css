@@ -126,6 +126,15 @@ a:hover {
   z-index: 88;
   width: 200px;
   text-align: center;
+  cursor: pointer;
+}
+
+.notfound-btn-ctn {
+  display: flex;
+}
+
+.notfound-btn-ctn a:nth-child(2) {
+  margin-left: 20px;
 }
 
 .btn:hover {
@@ -1532,6 +1541,8 @@ option, select > option {
   width: 100%;
   margin-top: 20px;
   text-align: center;
+  display: flex;
+  justify-content: center;
 }
 
 .paginator button {
@@ -1551,6 +1562,10 @@ option, select > option {
 
 .paginator button:hover {
  color: var(--accent);
+}
+
+.notfound-ctn {
+  background-color: red;
 }
 
 @media (max-width: 1000px) {
@@ -1609,6 +1624,7 @@ option, select > option {
  
  .coins-table-header div {
    padding: 8px 5px;
+   font-size: 12px;
  }
  
  .coins-table-header div:first-child, .coin-row div:first-child {
@@ -1621,7 +1637,7 @@ option, select > option {
  }
 
  .coins-table-header div:nth-child(2), .coin-row div:nth-child(2) {
-  width: 110px;
+  width: 130px;
  }
 
  .etoken-row {
@@ -1636,6 +1652,24 @@ option, select > option {
   width: 100% !important;
   justify-content: flex-start !important;
   margin-bottom: 5px;
+}
+
+.address-ctn {
+  margin: 1rem 0;
+  padding: 15px 15px;
+}
+
+.notfound-btn-ctn {
+  flex-direction: column;
+}
+
+.notfound-btn-ctn a:nth-child(2) {
+  margin-left: 0px;
+  margin-top: 20px;
+}
+
+.homepage__text-ctn h1 span {
+white-space: nowrap;
 }
 
 }
