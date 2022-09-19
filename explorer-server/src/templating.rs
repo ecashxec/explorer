@@ -14,10 +14,6 @@ mod filters;
 pub struct HomepageTemplate {}
 
 #[derive(Template)]
-#[template(path = "pages/404.html")]
-pub struct NotFoundTemplate {}
-
-#[derive(Template)]
 #[template(path = "pages/blocks.html")]
 pub struct BlocksTemplate {
     pub last_block_height: u32,
@@ -71,4 +67,10 @@ pub struct AddressTemplate<'a> {
     pub json_balances: HashMap<String, JsonBalance>,
     pub encoded_tokens: String,
     pub encoded_balances: String,
+}
+
+#[derive(Template)]
+#[template(path = "pages/error.html")]
+pub struct ErrorTemplate {
+    pub message: String,
 }

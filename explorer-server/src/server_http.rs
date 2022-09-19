@@ -18,10 +18,6 @@ pub async fn homepage(server: Extension<Arc<Server>>) -> Result<Html<String>, Se
     Ok(Html(server.homepage().await.map_err(to_server_error)?))
 }
 
-pub async fn notfound(server: Extension<Arc<Server>>) -> Result<Html<String>, ServerError> {
-    Ok(Html(server.notfound().await.map_err(to_server_error)?))
-}
-
 pub async fn blocks(server: Extension<Arc<Server>>) -> Result<Html<String>, ServerError> {
     Ok(Html(server.blocks().await.map_err(to_server_error)?))
 }
