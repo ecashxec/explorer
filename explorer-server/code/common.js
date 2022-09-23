@@ -100,10 +100,12 @@ function searchButton() {
   }
   else if (search.slice(0, 6) === 'ecash:' ) {
   location.href = '/search/' + search;
-  } else {
+  } else if (search.length > 6) {
     search = 'ecash:' + search;
     location.href = '/search/' + search;
-  }
+  } else if (!isNaN(search)) {
+    location.href = '/block-height/' + search;
+  } else return
 }
 
 function toggleTransactionScriptData() {
