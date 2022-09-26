@@ -191,6 +191,7 @@ impl Server {
             timestamp,
             difficulty,
             coinbase_data,
+            best_height
         };
 
         Ok(block_template.render().unwrap())

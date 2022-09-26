@@ -30,6 +30,7 @@ pub struct BlockTemplate<'a> {
     pub timestamp: DateTime<chrono::Utc>,
     pub difficulty: f64,
     pub coinbase_data: Vec<u8>,
+    pub best_height: i32,
 }
 
 #[derive(Template)]
