@@ -14,10 +14,15 @@
         {% if block_info.height != 0 %}
         <a class="nextblock-btn" href="/block-height/{{ block_info.height - 1 }}">Previous Block</a>
         {% endif %}
+
+        {% if block_info.height == 0 %}
+        <div class="nextblock-btn-disabled">Previous Block</div>
+        {% endif %}
         {% if block_info.height == best_height %}
           <span>|</span>
           <div class="nextblock-btn-disabled">Next Block</div>
         {% endif %}
+
          {% if block_info.height != best_height %}
           <span>|</span>
           <a class="nextblock-btn" href="/block-height/{{ block_info.height + 1 }}">Next Block</a>
