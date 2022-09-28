@@ -860,7 +860,20 @@ table.tx-details-table tr:last-child td {
 }
 
 .nextblock-btn {
-  color: #fff;
+  color: #00ABE7;
+  font-weight: 600;
+}
+
+.nextblock-btn:hover {
+  text-decoration: underline;
+}
+
+.nextblock-btn-disabled {
+  opacity: 0.5;
+  color: gray;
+  font-weight: 600;
+  display: inline-block;
+  cursor: not-allowed;
 }
 
 /* table.dataTable thead th,

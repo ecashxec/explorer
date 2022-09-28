@@ -10,13 +10,17 @@
   <div class="ui container">
     <div class="block-header">
       <h1>Block #{{ block_info.height }}</h1>
-      <div>
-        {% if block_info.height != best_height %}
-          <a class="nextblock-btn" href="/block-height/{{ block_info.height + 1 }}">&#60;Next Block</a>
-          <span>|</span>
-        {% endif %}
+      <div class="next-block-ctn">
         {% if block_info.height != 0 %}
-        <a class="nextblock-btn" href="/block-height/{{ block_info.height - 1 }}">Previous Block&#62;</a>
+        <a class="nextblock-btn" href="/block-height/{{ block_info.height - 1 }}">Previous Block</a>
+        {% endif %}
+        {% if block_info.height == best_height %}
+          <span>|</span>
+          <div class="nextblock-btn-disabled">Next Block</div>
+        {% endif %}
+         {% if block_info.height != best_height %}
+          <span>|</span>
+          <a class="nextblock-btn" href="/block-height/{{ block_info.height + 1 }}">Next Block</a>
         {% endif %}
       </div>
     </div>
