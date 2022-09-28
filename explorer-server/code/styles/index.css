@@ -1351,6 +1351,7 @@ option, select > option {
   flex-direction: column;
   width: 100%;
   word-break: break-all;
+  padding-left: 20px;
 }
 
 .input-hex {
