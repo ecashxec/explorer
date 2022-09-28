@@ -1589,6 +1589,28 @@ option, select > option {
   background-color: red;
 }
 
+div.dt-buttons {
+  float: right !important;
+}
+
+div.dt-buttons button {
+   background: rgba(255, 255, 255, 0.1) !important;
+   color: #fff !important;
+   font-size: 12px !important;
+   border: none !important;
+   transition: all ease-in-out 200ms;
+}
+
+div.dt-buttons button:hover {
+  background: #00ABE7 !important;
+}
+
+@media screen and (max-width: 640px) {
+div.dt-buttons {
+    text-align: right !important;
+}
+}
+
 @media (max-width: 1000px) {
 
 .ui[class*="three column"].grid>.column:not(.row), .ui[class*="three column"].grid>.row>.column {

@@ -189,6 +189,13 @@ const datatable = () => {
   const address = getAddress();
 
   $('#address-txs-table').DataTable({
+    dom: 'Bfrtip',
+    buttons: [
+      {
+        extend: 'csv',
+        text: 'Export to CSV'
+    }
+    ],
     searching: false,
     lengthMenu: [50, 100, 200],
     pageLength: DEFAULT_ROWS_PER_PAGE,
