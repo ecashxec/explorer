@@ -43,7 +43,7 @@ function loadSatsTable() {
     listArray.push(renderRowsCoins(addrBalances["main"].utxos[i]))
   }
   const numberOfItems = listArray.length
-  const numberPerPage = 20
+  const numberPerPage = 10
   const currentPage = 1
   const numberOfPages = Math.ceil(numberOfItems / numberPerPage)
 
