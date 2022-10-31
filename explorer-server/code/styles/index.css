@@ -1530,7 +1530,7 @@ option, select > option {
   font-weight: bold;
   text-align: right;
   justify-content: flex-end;
-  color: var(--accent);
+  color: #FFF;
 }
 
 .etoken-row .etrc-name {
