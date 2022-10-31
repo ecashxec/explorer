@@ -32,7 +32,7 @@ const renderFeePerByte = (_value, _type, row) => {
 };
 const renderOutput = (satsOutput, _type, row) => {
   if (row.token) {
-    var ticker = ' <a href="/tx/' + row.token.tokenId + '">' + row.token.tokenTicker + '</a>';
+    var ticker = ' <a href="/tx/' + row.txHash + '">' + row.token.tokenTicker + '</a>';
     return renderAmount(row.stats.tokenOutput, row.token.decimals) + ticker;
   }
   return renderSats(row.stats.satsOutput) + ' XEC';
