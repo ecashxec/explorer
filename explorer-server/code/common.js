@@ -98,7 +98,7 @@ function searchButton() {
   else if (search.match(regHex32) !== null) {
     location.href = '/search/' + search;
   }
-  else if (search.slice(0, 6) === 'ecash:' ) {
+  else if (search.slice(0, 6) === 'ecash:' || search.slice(0, 7) === 'etoken:' ) {
   location.href = '/search/' + search;
   } else if (search.length > 6) {
     search = 'ecash:' + search;
