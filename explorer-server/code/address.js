@@ -44,46 +44,51 @@ function loadSatsTable() {
   }
   const numberOfItems = listArray.length
   const numberPerPage = 10
-  const currentPage = 1
+  const currentPage = 0
   const numberOfPages = Math.ceil(numberOfItems / numberPerPage)
 
-  function accomodatePage(clickedPage) {
-    if (clickedPage <= 1) {
-      return clickedPage + 1
-    }
-    if (clickedPage >= numberOfPages) {
-      return clickedPage - 1
-    }
-    return clickedPage
-  }
+
 
   function buildPagination(clickedPage) {
     $('.paginator').empty()
-    const currPageNum = accomodatePage(clickedPage)
-    if (numberOfPages >= 5) {
-      $('.paginator').append(`<button class="page_btn" value="${1}">&#171;</button>`)
-      for (let i = -1; i < 4; i++) {
-        $('.paginator').append(`<button class="page_btn" value="${currPageNum+i}">${currPageNum+i}</button>`)
-      }
-      $('.paginator').append(`<button class="page_btn" value="${numberOfPages}">&#187;</button>`)
-    } else if (numberOfPages === 1) {
-      return
-    } 
-    else {
+    const currPageNum = clickedPage
+    if (numberOfPages >= 3) {
+      if (currPageNum === 0) {
+        $('.paginator').append(`<button class="page_btn" value="${0}">&#171;</button>`)
+        $('.paginator').append(`<button class="page_btn active-pagination-btn" value="${currPageNum}">${currPageNum + 1}</button>`)
+        $('.paginator').append(`<button class="page_btn" value="${currPageNum + 1}">${currPageNum + 2}</button>`)
+        $('.paginator').append(`<button class="page_btn" value="${currPageNum + 2}">${currPageNum + 3}</button>`)
+        $('.paginator').append(`<button class="page_btn" value="${numberOfPages - 1}">&#187;</button>`)
+      } else if (currPageNum === numberOfPages - 1) {
+        $('.paginator').append(`<button class="page_btn" value="${0}">&#171;</button>`)
+        $('.paginator').append(`<button class="page_btn" value="${currPageNum - 2}">${currPageNum - 1}</button>`)
+        $('.paginator').append(`<button class="page_btn" value="${currPageNum - 1}">${currPageNum}</button>`)
+        $('.paginator').append(`<button class="page_btn active-pagination-btn" value="${currPageNum}">${currPageNum + 1}</button>`)
+        $('.paginator').append(`<button class="page_btn" value="${numberOfPages - 1}">&#187;</button>`)
+      } else {
+        $('.paginator').append(`<button class="page_btn" value="${0}">&#171;</button>`)
+        $('.paginator').append(`<button class="page_btn" value="${currPageNum - 1}">${currPageNum}</button>`)
+        $('.paginator').append(`<button class="page_btn active-pagination-btn" value="${currPageNum}">${currPageNum + 1}</button>`)
+        $('.paginator').append(`<button class="page_btn" value="${currPageNum + 1}">${currPageNum + 2}</button>`)
+        $('.paginator').append(`<button class="page_btn" value="${numberOfPages - 1}">&#187;</button>`)
+        }
+    } else {
       for (let i = 0; i < numberOfPages; i++) {
-        $('.paginator').append(`<button class="btn btn-primary" value="${i+1}">${i+1}</button>`)
+        if (i === currPageNum) {
+          $('.paginator').append(`<button class="page_btn active-pagination-btn" value="${i}">${i + 1}</button>`)
+        } else { $('.paginator').append(`<button class="page_btn" value="${i}">${i + 1}</button>`) }
       }
-    }
+    } 
   }
 
   function buildPage(currPage) {
-    const trimStart = (currPage - 1) * numberPerPage
+    const trimStart = currPage * numberPerPage
     const trimEnd = trimStart + numberPerPage
     $('#sats-coins-table').empty().append(listArray.slice(trimStart, trimEnd))
   }
 
   $(document).ready(function() {
-    buildPage(1)
+    buildPage(0)
     buildPagination(currentPage)
 
     $('.paginator').on('click', 'button', function() {

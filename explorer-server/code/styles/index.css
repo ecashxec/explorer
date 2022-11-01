@@ -386,6 +386,11 @@ table.dataTable thead .sorting {
   color: #fff !important;
 }
 
+.paginator .active-pagination-btn {
+  background-color: var(--accent) !important;
+  color: #fff !important;
+}
+
 /*************************************** MOBILE STYLES *****************************************************/
 
 
