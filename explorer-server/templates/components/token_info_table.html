@@ -20,23 +20,11 @@
                 {% when Some with (slp_meta) %}
                   {% match slp_meta.token_type() %}
                     {% when SlpTokenType::Fungible %}
-                      Type1 (
-                      <a href="https://github.com/simpleledger/slp-specifications/blob/master/slp-token-type-1.md">
-                        Specification
-                      </a>
-                      )
+                      Type1 (<a href="https://github.com/simpleledger/slp-specifications/blob/master/slp-token-type-1.md">Specification</a>)
                     {% when SlpTokenType::Nft1Group %}
-                      NFT1 Group (
-                      <a href="https://github.com/simpleledger/slp-specifications/blob/master/slp-nft-1.md">
-                        Specification
-                      </a>
-                      )
+                      NFT1 Group (<a href="https://github.com/simpleledger/slp-specifications/blob/master/slp-nft-1.md">Specification</a>)
                     {% when SlpTokenType::Nft1Child %}
-                      NFT1 Child (
-                      <a href="https://github.com/simpleledger/slp-specifications/blob/master/slp-nft-1.md">
-                        Specification
-                      </a>
-                      )
+                      NFT1 Child (<a href="https://github.com/simpleledger/slp-specifications/blob/master/slp-nft-1.md">Specification</a>)
                     {% when _ %}
                       Unknown
                   {% endmatch %}
@@ -102,8 +90,8 @@
         </div>
 
         <div class="tx-details-row">
-          <div>Document URI</div>
-          <div>{% let token_url = genesis_info.token_document_url|string_from_lossy_utf8 %}
+          <div style="white-space: nowrap;">Document URI</div>
+          <div style="word-break: break-all; padding-left: 20px;">{% let token_url = genesis_info.token_document_url|string_from_lossy_utf8 %}
             <a href="{{ token_url }}" target="_blank">{{ token_url }}</a></div>
         </div>
 
