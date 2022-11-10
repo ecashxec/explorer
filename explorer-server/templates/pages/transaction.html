@@ -184,7 +184,26 @@
     <div class="input-output-ctn">
       <div class="input-output-row">
         <div class="input-ctn">
-          <h4>Inputs ({{ tx.inputs.len() }})</h4>
+          <div class="input-ctn-inner">
+            <h4>Inputs ({{ tx.inputs.len() }})</h4>
+            <div class="time-icons-ctn">
+              <div id="tx_date">{{ timestamp }}</div>
+              <div class="time-icon hide-time-icon" id="pre_xec">
+                <img src="/assets/pre-ecash-icon.png" />
+                <span>Pre-XEC<br />(Nov 15, 2020)</span>
+              </div>
+
+              <div class="time-icon hide-time-icon" id="pre_bch">
+                <img src="/assets/pre-bch-icon.png" />
+                <span>Pre-BCH<br />(Aug 8, 2017)</span>
+              </div>
+
+              <div class="time-icon hide-time-icon" id="five_years">
+                <img src="/assets/five-years-icon.png" />
+                <span>Over Five<br />Years Old</span>
+              </div>
+            </div>
+          </div>
           <div id="inputs">
           
               {% for input in tx.inputs %}
@@ -248,5 +267,35 @@
         disableAdvanced();
       }
     });
+  </script>
+
+  <script type="text/javascript">
+    var xec = document.getElementById("pre_xec");
+    var bch = document.getElementById("pre_bch");
+    var five = document.getElementById("five_years");
+    var txDateObject = document.getElementById("tx_date").textContent
+    var txDate = new Date(txDateObject).getTime() / 1000
+    var today = Date.now() / 1000
+    var xecDate = 1605441600
+    var bchDate = 1502193600
+    var fiveYearsAgo = today - 157800000
+    const checkXecDate = () => {
+        if (txDate < xecDate) {
+        xec.classList.remove("hide-time-icon");
+      } else return
+    }
+    const checkBchDate = () => {
+        if (txDate < bchDate) {
+        bch.classList.remove("hide-time-icon");
+      } else return
+    }
+    const checkFiveYearDate = () => {
+        if (txDate < fiveYearsAgo) {
+        five.classList.remove("hide-time-icon");
+      } else return
+    }
+    checkXecDate();
+    checkBchDate();
+    checkFiveYearDate();
   </script>
 {% endblock %}

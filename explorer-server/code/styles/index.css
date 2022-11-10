@@ -391,6 +391,81 @@ table.dataTable thead .sorting {
   color: #fff !important;
 }
 
+.input-ctn-inner {
+  display: flex;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.input-ctn-inner h4 {
+  margin: 0;
+}
+
+.time-icons-ctn {
+  display: flex;
+  align-items: center;
+  margin-left: 10px;
+}
+
+.hide-time-icon {
+  display: none !important;
+}
+
+.time-icon {
+  width: 22px;
+  margin-right: 10px;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.time-icon img {
+  width: 100%;
+  cursor: pointer;
+}
+
+.time-icon span {
+  visibility: hidden;
+  background-color: #fff;
+  color: var(--primary-background);
+  text-align: center;
+  padding: 2px 0;
+  border-radius: 5px;
+  position: absolute;
+  z-index: 1;
+  width: 110px;
+  top: -10px;
+  left:50%;
+  transform:translate(-50%, -100%);
+  font-size: 12px;
+  z-index:99999999;
+  box-sizing:border-box;
+  line-height: 1.5em;
+}
+
+.time-icon span::before {
+  content:'';
+  position:absolute;
+  left:50%;
+  width: 0; 
+  height: 0; 
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  transform:translate(-50%,38px);
+  border-top: 7px solid #fff;
+}
+
+.time-icon:hover span {
+  visibility: visible;
+}
+
+#tx_date {
+  display: none;
+  visibility: hidden;
+  font-size: 2px;
+  opacity: 0;
+}
+
 /*************************************** MOBILE STYLES *****************************************************/
 
 
