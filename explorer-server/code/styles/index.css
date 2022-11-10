@@ -407,6 +407,12 @@ table.dataTable thead .sorting {
   margin-left: 10px;
 }
 
+.age-icons-ctn {
+  display: flex;
+  align-items: center;
+  justify-content: right;
+}
+
 .hide-time-icon {
   display: none !important;
 }
@@ -419,12 +425,26 @@ table.dataTable thead .sorting {
   align-items: center;
 }
 
+.age-icon {
+  width: 18px;
+  margin-right: 5px;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
 .time-icon img {
   width: 100%;
   cursor: pointer;
 }
 
-.time-icon span {
+.age-icon img {
+  width: 100%;
+  cursor: pointer;
+}
+
+.time-icon span,
+.age-icon span {
   visibility: hidden;
   background-color: #fff;
   color: var(--primary-background);
@@ -443,7 +463,8 @@ table.dataTable thead .sorting {
   line-height: 1.5em;
 }
 
-.time-icon span::before {
+.time-icon span::before, 
+.age-icon span::before {
   content:'';
   position:absolute;
   left:50%;
@@ -455,8 +476,13 @@ table.dataTable thead .sorting {
   border-top: 7px solid #fff;
 }
 
-.time-icon:hover span {
+.time-icon:hover span,
+.age-icon:hover span {
   visibility: visible;
+}
+
+.input-margin {
+  width: 15px;
 }
 
 #tx_date {
