@@ -492,6 +492,18 @@ table.dataTable thead .sorting {
   opacity: 0;
 }
 
+@media (max-width: 550px) {
+
+.age-icons-ctn {
+  margin-top: 5px;
+}
+
+.age-icon {
+  width: 15px;
+}
+
+}
+
 /*************************************** MOBILE STYLES *****************************************************/
 
 

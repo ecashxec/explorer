@@ -64,10 +64,13 @@
       </div>   <!-- End Top Row -->
 
       <div class="address-ctn-divider"></div>
-
+      {% if total_xec > 0 %} 
       <a class="show-coins" onclick="$('#sats-coins').toggle(); loadSatsTable();">
         Coins <i class="icon chevron circle down"></i>
       </a>
+      {% else %}
+      <div>Address is empty</div>
+      {% endif %}
 
       <div id="sats-coins" style="display: none;">
         <div class="coins-table-header">
