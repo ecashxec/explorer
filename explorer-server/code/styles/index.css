@@ -10,11 +10,11 @@ h1, h2, h3, h4, h5 {
 }
 
 body {
-  /* overflow: hidden; */
   font-family: 'Poppins', sans-serif !important;
   background: var(--primary-background);
   color: #fff;
   overflow-y: scroll;
+  position: relative;
 }
 
 a {
@@ -508,6 +508,10 @@ table.dataTable thead .sorting {
 
 
 @media (max-width: 800px) {
+
+  html, body {
+    overflow-x: hidden;
+  }
 
   .header-ctn {
     padding: 0 10px 0 0;
@@ -1861,6 +1865,17 @@ white-space: nowrap;
 
 .block-header h1 {
   margin-bottom: 10px;
+}
+
+.toggle-wrapper {
+  flex-direction: column-reverse;
+  align-items: flex-end;
+  font-size: 12px;
+}
+
+.toggle_btn {
+  margin-right: 0;
+  margin-top: 2px;
 }
 
 }
